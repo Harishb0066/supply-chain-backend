@@ -1,4 +1,4 @@
-// server.js - Consumer Backend with Blockchain Hash Chaining (FULLY FIXED)
+// server.js - Consumer Backend with Blockchain Hash Chaining (CRASH FIXED)
 // Run: node server.js
 
 const express = require('express');
@@ -72,7 +72,6 @@ function loadDatabase() {
       nextProductId = parsed.nextProductId || 1;
       distributorToConsumerMap = parsed.distributorToConsumerMap || {};
       
-      // FIX: Recalculate nextProductId based on existing products
       const existingIds = Object.keys(consumerProducts).map(id => parseInt(id));
       if (existingIds.length > 0) {
         nextProductId = Math.max(...existingIds) + 1;
@@ -128,15 +127,17 @@ function getProductImage(productName) {
   return `https://source.unsplash.com/800x600/?${encodeURIComponent(keywords + ' high quality real photo')}`;
 }
 
+// ==================== API ROUTES ====================
+
 app.post('/api/products/sync', async (req, res) => {
+  // (exact same as before - no changes needed here)
   try {
-    loadDatabase(); // Always reload to get latest state
+    loadDatabase();
 
     const { distributorProductId, name, origin, status, timestamp } = req.body;
 
     console.log('📥 Sync request received:', { distributorProductId, name, origin, status });
 
-    // Check if already synced
     if (distributorToConsumerMap[distributorProductId]) {
       return res.status(400).json({
         error: 'Product already synced',
@@ -144,7 +145,6 @@ app.post('/api/products/sync', async (req, res) => {
       });
     }
 
-    // Limit maximum products to 100,000
     if (nextProductId > 100000) {
       return res.status(400).json({ 
         success: false,
@@ -152,7 +152,6 @@ app.post('/api/products/sync', async (req, res) => {
       });
     }
 
-    // Create new ID
     const consumerProductId = nextProductId++;
 
     const batch = `${origin.substring(0,2).toUpperCase()}-${name.toUpperCase().replace(/\s+/g,'')}-${new Date().getFullYear()}-${Math.random().toString(36).substring(2,5).toUpperCase()}`;
@@ -212,7 +211,6 @@ app.post('/api/products/sync', async (req, res) => {
     const verification = verifyHashChain(consumerProduct.journey);
     console.log('🔐 Hash chain verification:', verification.message);
 
-    // ✅ FIXED: Use your actual Render URL
     const publicUrl = `https://harish-supply-chain.onrender.com/product/${consumerProductId}`;
     
     const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
@@ -238,8 +236,6 @@ app.post('/api/products/sync', async (req, res) => {
     res.status(500).json({ error: 'Failed to sync product', details: error.message });
   }
 });
-
-// ==================== ALL API ROUTES ====================
 
 app.get('/api/products', (req, res) => {
   loadDatabase();
@@ -470,26 +466,17 @@ function analyzeProduct(product) {
   };
 }
 
-// ==================== FRONTEND SERVING (FIXED ORDER) ====================
+// ==================== FRONTEND SERVING (SAFE & CORRECT ORDER) ====================
 
-// Serve the dashboard at root URL
+// Serve dashboard at root
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Serve static files (QR images, future CSS/JS, etc.)
+// Serve static files (including index.html for direct access if needed)
 app.use(express.static(__dirname));
 
-// Optional catch-all: show dashboard for any unknown non-API route
-app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api') && !req.path.startsWith('/product')) {
-    res.sendFile(path.join(__dirname, 'index.html'));
-  } else {
-    res.status(404).send('Not Found');
-  }
-});
-
-// Reset endpoint for development
+// Reset endpoint
 app.post('/api/reset', (req, res) => {
   consumerProducts = {};
   nextProductId = 1;
