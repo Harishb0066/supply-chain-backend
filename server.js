@@ -10,6 +10,60 @@ const crypto = require('crypto');
 
 const app = express();
 
+// ==================== AUTHENTICATION & FRONTEND SERVING ====================
+
+const session = require('express-session'); // Add this at top with other requires if missing
+
+app.use(session({
+  secret: 'your-super-secret-key-change-this', // CHANGE THIS!
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false } // Set true if using HTTPS
+}));
+
+// Login page
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+// Login POST
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  // CHANGE THESE CREDENTIALS!
+  if (username === 'admin' && password === 'yourstrongpassword123') {
+    req.session.loggedIn = true;
+    res.redirect('/');
+  } else {
+    res.sendFile(path.join(__dirname, 'login.html')); // Or add error message
+  }
+});
+
+// Auth middleware
+function requireAuth(req, res, next) {
+  if (req.session.loggedIn) {
+    next();
+  } else {
+    res.redirect('/login');
+  }
+}
+
+// Protect dashboard
+app.get('/', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Protect delete endpoint
+app.delete('/api/products/:id', requireAuth, (req, res) => {
+  // Your existing delete code here...
+});
+
+// Serve static files
+app.use(express.static(__dirname));
+
+// Catch-all (protected)
+app.get('*', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -521,4 +575,5 @@ app.listen(PORT, () => {
 ╚═══════════════════════════════════════════╝
 `);
 });
+
 
