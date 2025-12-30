@@ -1,0 +1,19 @@
+{
+  "name": "food-qr-consumer-app",
+  "version": "1.0.0",
+  "main": "scanner.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "express": "^5.2.1",
+    "qrcode": "^1.5.4"
+  },
+  "description": ""
+}
