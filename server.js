@@ -307,7 +307,22 @@ app.get('/api/products/:id/verify', (req, res) => {
     }))
   });
 });
+// Basic auth middleware for delete endpoint (change username/password)
+function basicAuth(req, res, next) {
+  const auth = { login: 'admin', password: 'supersecret' }; // Change these!
+  const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
+  const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':');
+  if (login && password && login === auth.login && password === auth.password) {
+    return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="401"');
+  res.status(401).send('Authentication required.');
+}
 
+// Protect delete with auth
+app.delete('/api/products/:id', basicAuth, (req, res) => {
+  // ... your existing delete code here ...
+});
 app.delete('/api/products/:id', (req, res) => {
   loadDatabase();
   
@@ -506,3 +521,4 @@ app.listen(PORT, () => {
 ╚═══════════════════════════════════════════╝
 `);
 });
+
