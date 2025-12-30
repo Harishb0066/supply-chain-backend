@@ -209,6 +209,40 @@
 
     <script>
         // 🔧 FIXED: Always use your CURRENT Render backend
+
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  toast.textContent = message;
+  toast.style.position = 'fixed';
+  toast.style.bottom = '20px';
+  toast.style.right = '20px';
+  toast.style.padding = '15px 25px';
+  toast.style.background = type === 'success' ? '#4CAF50' : '#f44336';
+  toast.style.color = 'white';
+  toast.style.borderRadius = '8px';
+  toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+  toast.style.zIndex = '10000';
+  toast.style.animation = 'slideIn 0.5s, slideOut 0.5s 2.5s forwards';
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+// Add CSS for animation
+const style = document.createElement('style');
+style.textContent = `
+@keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes slideOut { from { transform: translateX(0); } to { transform: translateX(100%); } }
+`;
+document.head.appendChild(style);
+
+// In deleteProduct function, after success:
+showToast('✅ Product deleted successfully!', 'success');
+
+// In loadProducts error:
+showToast('❌ Failed to load products', 'error');
+
+// Better auto-refresh (polling every 10s instead of 30s)
+setInterval(loadProducts, 10000);
         const BASE_URL = "https://harish-supply-chain.onrender.com";
         const API_URL = `${BASE_URL}/api/products`;
 
@@ -409,4 +443,5 @@
         });
     </script>
 </body>
+
 </html>
