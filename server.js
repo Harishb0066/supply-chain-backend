@@ -1,4 +1,4 @@
-// server.js - Consumer Backend with Blockchain Hash Chaining (FIXED)
+// server.js - Consumer Backend with Blockchain Hash Chaining (FULLY FIXED)
 // Run: node server.js
 
 const express = require('express');
@@ -212,7 +212,9 @@ app.post('/api/products/sync', async (req, res) => {
     const verification = verifyHashChain(consumerProduct.journey);
     console.log('🔐 Hash chain verification:', verification.message);
 
-    const publicUrl = `https://supply-chain-qr.onrender.com/product/${consumerProductId}`;
+    // ✅ FIXED: Use your actual Render URL
+    const publicUrl = `https://harish-supply-chain.onrender.com/product/${consumerProductId}`;
+    
     const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
     consumerProduct.qrCode = qrCodeUrl;
 
@@ -236,6 +238,8 @@ app.post('/api/products/sync', async (req, res) => {
     res.status(500).json({ error: 'Failed to sync product', details: error.message });
   }
 });
+
+// ==================== ALL API ROUTES ====================
 
 app.get('/api/products', (req, res) => {
   loadDatabase();
@@ -308,9 +312,8 @@ app.get('/api/products/:id/verify', (req, res) => {
   });
 });
 
-// FIX: Improved delete endpoint
 app.delete('/api/products/:id', (req, res) => {
-  loadDatabase(); // ✅ FIX: Reload database first
+  loadDatabase();
   
   try {
     const productId = parseInt(req.params.id);
@@ -325,10 +328,8 @@ app.delete('/api/products/:id', (req, res) => {
 
     const productName = product.name;
 
-    // Delete product
     delete consumerProducts[productId];
 
-    // Remove from distributor mapping
     for (const distId in distributorToConsumerMap) {
       if (distributorToConsumerMap[distId] === productId) {
         delete distributorToConsumerMap[distId];
@@ -336,12 +337,11 @@ app.delete('/api/products/:id', (req, res) => {
       }
     }
 
-    // ✅ FIX: Recalculate nextProductId after deletion
     const remainingIds = Object.keys(consumerProducts).map(id => parseInt(id));
     if (remainingIds.length > 0) {
       nextProductId = Math.max(...remainingIds) + 1;
     } else {
-      nextProductId = 1; // Reset to 1 if no products remain
+      nextProductId = 1;
     }
 
     saveDatabase();
@@ -353,8 +353,7 @@ app.delete('/api/products/:id', (req, res) => {
       success: true, 
       message: 'Product deleted successfully',
       deletedProductId: productId,
-      deletedProductName: productName,
-      nextProductId: nextProductId // Return for debugging
+      deletedProductName: productName
     });
 
   } catch (error) {
@@ -471,7 +470,25 @@ function analyzeProduct(product) {
   };
 }
 
-const PORT = process.env.PORT || 3000;
+// ==================== FRONTEND SERVING (FIXED ORDER) ====================
+
+// Serve the dashboard at root URL
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Serve static files (QR images, future CSS/JS, etc.)
+app.use(express.static(__dirname));
+
+// Optional catch-all: show dashboard for any unknown non-API route
+app.get('*', (req, res) => {
+  if (!req.path.startsWith('/api') && !req.path.startsWith('/product')) {
+    res.sendFile(path.join(__dirname, 'index.html'));
+  } else {
+    res.status(404).send('Not Found');
+  }
+});
+
 // Reset endpoint for development
 app.post('/api/reset', (req, res) => {
   consumerProducts = {};
@@ -488,6 +505,8 @@ app.post('/api/reset', (req, res) => {
   });
 });
 
+const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════╗
@@ -496,7 +515,7 @@ app.listen(PORT, () => {
 ║ 🔗 Blockchain Hash Chaining: ✅           ║
 ║ 🔐 Tamper Detection: ✅                   ║
 ║ 🌐 CORS: ✅ (All origins)                 ║
-║ 📊 Next Product ID: ${nextProductId}                     ║
+║ 📊 Next Product ID: ${nextProductId}       ║
 ╚═══════════════════════════════════════════╝
 `);
 });
