@@ -1,13 +1,13 @@
-// server.js - Consumer Backend with Blockchain Hash Chaining (MongoDB ADDED)
+// server.js - Consumer Backend with Blockchain Hash Chaining (MongoDB + LOGIN ADDED)
 // Run: node server.js
 
 const express = require('express');
 const QRCode = require('qrcode');
 const cors = require('cors');
-const fs = require('fs');
+const mongoose = require('mongoose');
 const path = require('path');
 const crypto = require('crypto');
-const mongoose = require('mongoose'); // ← NEW: MongoDB
+const session = require('express-session'); // ← NEW for login
 
 const app = express();
 
@@ -19,6 +19,73 @@ app.use(cors({
 }));
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // for login form
+
+// ==================== LOGIN PROTECTION ====================
+app.use(session({
+  secret: 'change-this-to-strong-secret', // ← CHANGE THIS!
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false }
+}));
+
+// Inline login page (no extra file needed)
+app.get('/login', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Admin Login</title>
+      <style>
+        body { font-family: Arial, sans-serif; background: #f0f2f5; height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); width: 320px; text-align: center; }
+        h2 { color: #333; margin-bottom: 30px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; }
+        button:hover { background: #5a6fd8; }
+      </style>
+    </head>
+    <body>
+      <div class="login-box">
+        <h2>🔐 Admin Login</h2>
+        <form action="/login" method="POST">
+          <input type="text" name="username" placeholder="Username" required>
+          <input type="password" name="password" placeholder="Password" required>
+          <button type="submit">Login</button>
+        </form>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+// Login POST
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  // ← CHANGE THESE CREDENTIALS!
+  if (username === 'admin' && password === 'yourpassword123') {
+    req.session.loggedIn = true;
+    res.redirect('/');
+  } else {
+    res.redirect('/login');
+  }
+});
+
+// Auth middleware
+function requireAuth(req, res, next) {
+  if (req.session.loggedIn) {
+    next();
+  } else {
+    res.redirect('/login');
+  }
+}
+
+// Protect QR generator dashboard
+app.get('/', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // ==================== MONGODB CONNECTION ====================
 mongoose.connect('mongodb+srv://harishkumar00666:Harish@2005@supplychain-cluster.wizl9kz.mongodb.net/supplychain?retryWrites=true&w=majority')
@@ -269,8 +336,38 @@ app.get('/api/products/:id', async (req, res) => {
 
 app.use(express.static(__dirname));
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+// Protect delete endpoint
+app.delete('/api/products/:id', requireAuth, async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const deleted = await Product.deleteOne({ id: productId });
+
+    if (deleted.deletedCount === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Product not found' 
+      });
+    }
+
+    await loadNextId();
+
+    console.log(`🗑️ Deleted product ID ${productId}`);
+    console.log(`📊 Next Product ID reset to: ${nextProductId}`);
+
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Product deleted successfully',
+      deletedProductId: productId
+    });
+
+  } catch (error) {
+    console.error('❌ Delete error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to delete product',
+      details: error.message
+    });
+  }
 });
 
 app.get('/api/qrcode/:id', async (req, res) => {
@@ -305,39 +402,6 @@ app.get('/api/products/:id/verify', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Error' });
-  }
-});
-
-app.delete('/api/products/:id', async (req, res) => {
-  try {
-    const productId = parseInt(req.params.id);
-    const deleted = await Product.deleteOne({ id: productId });
-
-    if (deleted.deletedCount === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Product not found' 
-      });
-    }
-
-    await loadNextId();
-
-    console.log(`🗑️ Deleted product ID ${productId}`);
-    console.log(`📊 Next Product ID reset to: ${nextProductId}`);
-
-    return res.status(200).json({ 
-      success: true, 
-      message: 'Product deleted successfully',
-      deletedProductId: productId
-    });
-
-  } catch (error) {
-    console.error('❌ Delete error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Failed to delete product',
-      details: error.message
-    });
   }
 });
 
@@ -473,12 +537,12 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════╗
-║ 🚀 Consumer Backend running on ${PORT}      ║
-║ 💾 Persistent DB enabled                  ║
-║ 🔗 Blockchain Hash Chaining: ✅           ║
-║ 🔐 Tamper Detection: ✅                   ║
-║ 🌐 CORS: ✅ (All origins)                 ║
-║ 📊 Next Product ID: ${nextProductId}                     ║
+║ 🚀 Consumer Backend running on ${PORT} ║
+║ 💾 Persistent DB enabled ║
+║ 🔗 Blockchain Hash Chaining: ✅ ║
+║ 🔐 Tamper Detection: ✅ ║
+║ 🌐 CORS: ✅ (All origins) ║
+║ 📊 Next Product ID: ${nextProductId} ║
 ╚═══════════════════════════════════════════╝
 `);
 });
