@@ -1,4 +1,4 @@
-// server.js - Consumer Backend with Blockchain Hash Chaining (CRASH FIXED)
+// server.js - Consumer Backend with Blockchain Hash Chaining (MongoDB ADDED)
 // Run: node server.js
 
 const express = require('express');
@@ -7,63 +7,10 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const mongoose = require('mongoose'); // ← NEW: MongoDB
 
 const app = express();
 
-// ==================== AUTHENTICATION & FRONTEND SERVING ====================
-
-const session = require('express-session'); // Add this at top with other requires if missing
-
-app.use(session({
-  secret: 'your-super-secret-key-change-this', // CHANGE THIS!
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false } // Set true if using HTTPS
-}));
-
-// Login page
-app.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'login.html'));
-});
-
-// Login POST
-app.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  // CHANGE THESE CREDENTIALS!
-  if (username === 'admin' && password === 'yourstrongpassword123') {
-    req.session.loggedIn = true;
-    res.redirect('/');
-  } else {
-    res.sendFile(path.join(__dirname, 'login.html')); // Or add error message
-  }
-});
-
-// Auth middleware
-function requireAuth(req, res, next) {
-  if (req.session.loggedIn) {
-    next();
-  } else {
-    res.redirect('/login');
-  }
-}
-
-// Protect dashboard
-app.get('/', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Protect delete endpoint
-app.delete('/api/products/:id', requireAuth, (req, res) => {
-  // Your existing delete code here...
-});
-
-// Serve static files
-app.use(express.static(__dirname));
-
-// Catch-all (protected)
-app.get('*', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -73,11 +20,42 @@ app.use(cors({
 
 app.use(express.json());
 
-const DB_FILE = path.join(__dirname, 'database.json');
+// ==================== MONGODB CONNECTION ====================
+mongoose.connect('mongodb+srv://harishkumar00666:Harish@2005@supplychain-cluster.wizl9kz.mongodb.net/supplychain?retryWrites=true&w=majority')
+  .then(() => console.log('✅ MongoDB Atlas Connected – Products Persist Forever!'))
+  .catch(err => console.error('❌ MongoDB Connection Failed:', err));
 
-let consumerProducts = {};
+// Product Model for MongoDB
+const productSchema = new mongoose.Schema({
+  id: { type: Number, unique: true },
+  name: String,
+  origin: String,
+  batch: String,
+  harvestDate: String,
+  description: String,
+  state: Number,
+  distributorId: String,
+  syncedAt: String,
+  scanCount: { type: Number, default: 0 },
+  image: String,
+  journey: Array,
+  qrCode: String
+});
+
+const Product = mongoose.model('Product', productSchema);
+
 let nextProductId = 1;
 let distributorToConsumerMap = {};
+
+// Load nextProductId from DB on start
+async function loadNextId() {
+  const maxProduct = await Product.findOne().sort('-id').exec();
+  if (maxProduct) {
+    nextProductId = maxProduct.id + 1;
+  }
+  console.log(`📊 Next Product ID will be: ${nextProductId}`);
+}
+loadNextId().catch(console.error);
 
 function createHash(data) {
   return crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
@@ -117,51 +95,6 @@ function verifyHashChain(journey) {
   return { valid: true, message: "Hash chain verified - No tampering detected" };
 }
 
-function loadDatabase() {
-  if (fs.existsSync(DB_FILE)) {
-    try {
-      const data = fs.readFileSync(DB_FILE, 'utf8');
-      const parsed = JSON.parse(data);
-      consumerProducts = parsed.consumerProducts || {};
-      nextProductId = parsed.nextProductId || 1;
-      distributorToConsumerMap = parsed.distributorToConsumerMap || {};
-      
-      const existingIds = Object.keys(consumerProducts).map(id => parseInt(id));
-      if (existingIds.length > 0) {
-        nextProductId = Math.max(...existingIds) + 1;
-      }
-      
-      console.log(`✅ Database loaded: ${Object.keys(consumerProducts).length} products restored`);
-      console.log(`📊 Next Product ID will be: ${nextProductId}`);
-    } catch (err) {
-      console.error('❌ Failed to load database, starting fresh');
-      consumerProducts = {};
-      nextProductId = 1;
-      distributorToConsumerMap = {};
-    }
-  } else {
-    console.log('📄 No database file found, starting fresh');
-  }
-}
-
-function saveDatabase() {
-  const data = {
-    consumerProducts,
-    nextProductId,
-    distributorToConsumerMap
-  };
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-    console.log(`💾 Database saved: ${Object.keys(consumerProducts).length} products, Next ID: ${nextProductId}`);
-  } catch (err) {
-    console.error('❌ Failed to save database:', err);
-  }
-}
-
-loadDatabase();
-
-console.log('🚀 Starting Consumer Backend...');
-
 function getProductImage(productName) {
   const name = productName.toLowerCase();
   let keywords = name;
@@ -181,12 +114,11 @@ function getProductImage(productName) {
   return `https://source.unsplash.com/800x600/?${encodeURIComponent(keywords + ' high quality real photo')}`;
 }
 
-// ==================== API ROUTES ====================
+console.log('🚀 Starting Consumer Backend...');
 
 app.post('/api/products/sync', async (req, res) => {
-  // (exact same as before - no changes needed here)
   try {
-    loadDatabase();
+    await loadNextId();
 
     const { distributorProductId, name, origin, status, timestamp } = req.body;
 
@@ -270,10 +202,11 @@ app.post('/api/products/sync', async (req, res) => {
     const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
     consumerProduct.qrCode = qrCodeUrl;
 
-    consumerProducts[consumerProductId] = consumerProduct;
-    distributorToConsumerMap[distributorProductId] = consumerProductId;
+    // Save to MongoDB
+    const newProduct = new Product(consumerProduct);
+    await newProduct.save();
 
-    saveDatabase();
+    distributorToConsumerMap[distributorProductId] = consumerProductId;
 
     console.log(`✅ Product synced: Consumer ID ${consumerProductId}`);
 
@@ -291,134 +224,111 @@ app.post('/api/products/sync', async (req, res) => {
   }
 });
 
-app.get('/api/products', (req, res) => {
-  loadDatabase();
-  res.json({
-    success: true,
-    count: Object.keys(consumerProducts).length,
-    products: Object.values(consumerProducts)
-  });
-});
-
-app.get('/api/products/:id', (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
-
-  if (!product) {
-    return res.status(404).json({ success: false, error: 'Product not found' });
+app.get('/api/products', async (req, res) => {
+  try {
+    const products = await Product.find({});
+    res.json({
+      success: true,
+      count: products.length,
+      products: products
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to load products' });
   }
-
-  product.scanCount++;
-  product.lastScanned = new Date().toISOString();
-
-  saveDatabase();
-
-  const tamperCheck = verifyHashChain(product.journey);
-  const analysis = analyzeProduct(product);
-
-  console.log(`🔍 Product ${productId} scanned (Total scans: ${product.scanCount})`);
-  console.log(`🔐 Tamper check: ${tamperCheck.message}`);
-
-  res.json({
-    success: true,
-    product,
-    journey: product.journey,
-    analysis,
-    tamperDetection: tamperCheck
-  });
 });
 
-app.get('/api/qrcode/:id', (req, res) => {
-  loadDatabase();
-  const product = consumerProducts[req.params.id];
-  if (!product || !product.qrCode) {
-    return res.status(404).json({ error: 'QR code not found' });
-  }
-  res.json({ success: true, qrCode: product.qrCode });
-});
-
-app.get('/api/products/:id/verify', (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
-
-  if (!product) {
-    return res.status(404).json({ success: false, error: 'Product not found' });
-  }
-
-  const verification = verifyHashChain(product.journey);
-
-  res.json({
-    success: true,
-    productId,
-    productName: product.name,
-    verification,
-    journey: product.journey.map(block => ({
-      role: block.role,
-      hash: block.hash.substring(0, 16) + '...',
-      previousHash: block.previousHash.substring(0, 16) + '...'
-    }))
-  });
-});
-// Basic auth middleware for delete endpoint (change username/password)
-function basicAuth(req, res, next) {
-  const auth = { login: 'admin', password: 'supersecret' }; // Change these!
-  const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
-  const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':');
-  if (login && password && login === auth.login && password === auth.password) {
-    return next();
-  }
-  res.set('WWW-Authenticate', 'Basic realm="401"');
-  res.status(401).send('Authentication required.');
-}
-
-// Protect delete with auth
-app.delete('/api/products/:id', basicAuth, (req, res) => {
-  // ... your existing delete code here ...
-});
-app.delete('/api/products/:id', (req, res) => {
-  loadDatabase();
-  
+app.get('/api/products/:id', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
-    const product = consumerProducts[productId];
+    const product = await Product.findOne({ id: productId });
 
     if (!product) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    product.scanCount++;
+    await product.save();
+
+    const tamperCheck = verifyHashChain(product.journey);
+    const analysis = analyzeProduct(product);
+
+    console.log(`🔍 Product ${productId} scanned (Total scans: ${product.scanCount})`);
+    console.log(`🔐 Tamper check: ${tamperCheck.message}`);
+
+    res.json({
+      success: true,
+      product,
+      journey: product.journey,
+      analysis,
+      tamperDetection: tamperCheck
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Error loading product' });
+  }
+});
+
+app.use(express.static(__dirname));
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.get('/api/qrcode/:id', async (req, res) => {
+  try {
+    const product = await Product.findOne({ id: parseInt(req.params.id) });
+    if (!product || !product.qrCode) {
+      return res.status(404).json({ error: 'QR code not found' });
+    }
+    res.json({ success: true, qrCode: product.qrCode });
+  } catch (error) {
+    res.status(500).json({ error: 'Error' });
+  }
+});
+
+app.get('/api/products/:id/verify', async (req, res) => {
+  try {
+    const product = await Product.findOne({ id: parseInt(req.params.id) });
+    if (!product) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+    const verification = verifyHashChain(product.journey);
+    res.json({
+      success: true,
+      productId: product.id,
+      productName: product.name,
+      verification,
+      journey: product.journey.map(block => ({
+        role: block.role,
+        hash: block.hash.substring(0, 16) + '...',
+        previousHash: block.previousHash.substring(0, 16) + '...'
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Error' });
+  }
+});
+
+app.delete('/api/products/:id', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const deleted = await Product.deleteOne({ id: productId });
+
+    if (deleted.deletedCount === 0) {
       return res.status(404).json({ 
         success: false, 
         error: 'Product not found' 
       });
     }
 
-    const productName = product.name;
+    await loadNextId();
 
-    delete consumerProducts[productId];
-
-    for (const distId in distributorToConsumerMap) {
-      if (distributorToConsumerMap[distId] === productId) {
-        delete distributorToConsumerMap[distId];
-        break;
-      }
-    }
-
-    const remainingIds = Object.keys(consumerProducts).map(id => parseInt(id));
-    if (remainingIds.length > 0) {
-      nextProductId = Math.max(...remainingIds) + 1;
-    } else {
-      nextProductId = 1;
-    }
-
-    saveDatabase();
-
-    console.log(`🗑️ Deleted product ID ${productId} (${productName})`);
+    console.log(`🗑️ Deleted product ID ${productId}`);
     console.log(`📊 Next Product ID reset to: ${nextProductId}`);
 
     return res.status(200).json({ 
       success: true, 
       message: 'Product deleted successfully',
-      deletedProductId: productId,
-      deletedProductName: productName
+      deletedProductId: productId
     });
 
   } catch (error) {
@@ -431,93 +341,100 @@ app.delete('/api/products/:id', (req, res) => {
   }
 });
 
-app.get('/product/:id', (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
+app.get('/product/:id', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const product = await Product.findOne({ id: productId });
 
-  if (!product) {
-    return res.status(404).send(`
+    if (!product) {
+      return res.status(404).send(`
+        <html>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h2>Product Not Found</h2>
+            <p>Invalid Product ID: ${productId}</p>
+            <p style="color: #666;">This product may have been deleted or never existed.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    const analysis = analyzeProduct(product);
+    const tamperCheck = verifyHashChain(product.journey);
+
+    let html = `
       <html>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2>Product Not Found</h2>
-          <p>Invalid Product ID: ${productId}</p>
-          <p style="color: #666;">This product may have been deleted or never existed.</p>
+        <head>
+          <title>${product.name} - Supply Chain Verification</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; background: #f9f9f9; }
+            h2 { color: #333; }
+            .status { font-weight: bold; font-size: 1.6em; margin-bottom: 10px; }
+            .suspicious { color: orange; }
+            .authentic { color: green; }
+            img { max-width: 100%; height: auto; border-radius: 10px; margin: 15px 0; }
+            ul { list-style: none; padding-left: 0; }
+            li { margin: 15px 0; padding-left: 15px; border-left: 4px solid #ccc; }
+            hr { border: none; border-top: 1px solid #eee; margin: 25px 0; }
+          </style>
+        </head>
+        <body>
+          <h2 class="status ${analysis.status.toLowerCase()}">${analysis.status}</h2>
+          <h2>🛒 ${product.name}</h2>
+
+          <img src="${product.image}" alt="${product.name}" />
+
+          <p><b>Origin:</b> ${product.origin}</p>
+          <p><b>Batch ID:</b> ${product.batch}</p>
+          <p><b>Harvest Date:</b> ${product.harvestDate}</p>
+          <p><b>Current Stage:</b> ${product.state === 2 ? "🏪 Retail" : "⏳ In Transit"}</p>
+          <p><b>Description:</b><br>${product.description}</p>
+          <p>${analysis.message}</p>
+          <p><b>Scanned:</b> ${new Date().toLocaleString()}</p>
+
+          <hr />
+
+          <h3>📜 Product Journey</h3>
+          <ul>
+    `;
+
+    product.journey.forEach(step => {
+      html += `
+        <li>
+          <b>${step.role}</b> – ${step.location}<br>
+          🕒 ${new Date(step.timestamp).toLocaleString()}
+        </li>
+      `;
+    });
+
+    html += `
+          </ul>
+
+          <p><b>Tamper Detection:</b> ${tamperCheck.valid ? "✅ No tampering detected" : "❌ " + tamperCheck.message}</p>
+          <p>🤖 AI-powered verification</p>
         </body>
       </html>
-    `);
-  }
-
-  const analysis = analyzeProduct(product);
-  const tamperCheck = verifyHashChain(product.journey);
-
-  let html = `
-    <html>
-      <head>
-        <title>${product.name} - Supply Chain Verification</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-          body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; background: #f9f9f9; }
-          h2 { color: #333; }
-          .status { font-weight: bold; font-size: 1.6em; margin-bottom: 10px; }
-          .suspicious { color: orange; }
-          .authentic { color: green; }
-          img { max-width: 100%; height: auto; border-radius: 10px; margin: 15px 0; }
-          ul { list-style: none; padding-left: 0; }
-          li { margin: 15px 0; padding-left: 15px; border-left: 4px solid #ccc; }
-          hr { border: none; border-top: 1px solid #eee; margin: 25px 0; }
-        </style>
-      </head>
-      <body>
-        <h2 class="status ${analysis.status.toLowerCase()}">${analysis.status}</h2>
-        <h2>🛒 ${product.name}</h2>
-
-        <img src="${product.image}" alt="${product.name}" />
-
-        <p><b>Origin:</b> ${product.origin}</p>
-        <p><b>Batch ID:</b> ${product.batch}</p>
-        <p><b>Harvest Date:</b> ${product.harvestDate}</p>
-        <p><b>Current Stage:</b> ${product.state === 2 ? "🏪 Retail" : "⏳ In Transit"}</p>
-        <p><b>Description:</b><br>${product.description}</p>
-        <p>${analysis.message}</p>
-        <p><b>Scanned:</b> ${new Date().toLocaleString()}</p>
-
-        <hr />
-
-        <h3>📜 Product Journey</h3>
-        <ul>
-  `;
-
-  product.journey.forEach(step => {
-    html += `
-      <li>
-        <b>${step.role}</b> – ${step.location}<br>
-        🕒 ${new Date(step.timestamp).toLocaleString()}
-      </li>
     `;
-  });
 
-  html += `
-        </ul>
-
-        <p><b>Tamper Detection:</b> ${tamperCheck.valid ? "✅ No tampering detected" : "❌ " + tamperCheck.message}</p>
-        <p>🤖 AI-powered verification</p>
-      </body>
-    </html>
-  `;
-
-  res.send(html);
+    res.send(html);
+  } catch (error) {
+    res.status(500).send('Error loading product page');
+  }
 });
 
-app.get('/health', (req, res) => {
-  loadDatabase();
-  res.json({
-    status: 'healthy',
-    productsCount: Object.keys(consumerProducts).length,
-    nextProductId: nextProductId,
-    time: new Date().toISOString(),
-    features: ['Hash Chaining', 'Tamper Detection', 'Cryptographic Verification', 'CORS Enabled']
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const count = await Product.countDocuments();
+    res.json({
+      status: 'healthy',
+      productsCount: count,
+      nextProductId: nextProductId,
+      time: new Date().toISOString(),
+      features: ['Hash Chaining', 'Tamper Detection', 'Cryptographic Verification', 'CORS Enabled']
+    });
+  } catch (error) {
+    res.status(500).json({ status: 'unhealthy' });
+  }
 });
 
 function analyzeProduct(product) {
@@ -535,30 +452,20 @@ function analyzeProduct(product) {
   };
 }
 
-// ==================== FRONTEND SERVING (SAFE & CORRECT ORDER) ====================
-
-// Serve dashboard at root
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Serve static files (including index.html for direct access if needed)
-app.use(express.static(__dirname));
-
-// Reset endpoint
-app.post('/api/reset', (req, res) => {
-  consumerProducts = {};
-  nextProductId = 1;
-  distributorToConsumerMap = {};
-  saveDatabase();
-  
-  console.log('🔄 Database reset! All products deleted, ID counter reset to 1');
-  
-  res.json({
-    success: true,
-    message: 'Database reset successfully',
-    nextProductId: 1
-  });
+app.post('/api/reset', async (req, res) => {
+  try {
+    await Product.deleteMany({});
+    nextProductId = 1;
+    distributorToConsumerMap = {};
+    console.log('🔄 Database reset! All products deleted');
+    res.json({
+      success: true,
+      message: 'Database reset successfully',
+      nextProductId: 1
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Reset failed' });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
@@ -571,9 +478,7 @@ app.listen(PORT, () => {
 ║ 🔗 Blockchain Hash Chaining: ✅           ║
 ║ 🔐 Tamper Detection: ✅                   ║
 ║ 🌐 CORS: ✅ (All origins)                 ║
-║ 📊 Next Product ID: ${nextProductId}       ║
+║ 📊 Next Product ID: ${nextProductId}                     ║
 ╚═══════════════════════════════════════════╝
 `);
 });
-
-
