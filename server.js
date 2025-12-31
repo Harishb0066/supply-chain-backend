@@ -88,7 +88,7 @@ app.get('/', requireAuth, (req, res) => {
 });
 
 // ==================== MONGODB CONNECTION ====================
-mongoose.connect('mongodb+srv://harishkumar00666:Harish@2005@supplychain-cluster.wizl9kz.mongodb.net/supplychain?retryWrites=true&w=majority')
+mongoose.connect('mongodb+srv://harishkumar00666:Harish%402005@supplychain-cluster.wizl9kz.mongodb.net/supplychain?retryWrites=true&w=majority')
   .then(() => console.log('✅ MongoDB Atlas Connected – Products Persist Forever!'))
   .catch(err => console.error('❌ MongoDB Connection Failed:', err));
 
@@ -551,3 +551,4 @@ app.listen(PORT, () => {
 ╚═══════════════════════════════════════════╝
 `);
 });
+
