@@ -1,4 +1,4 @@
-// server.js - Consumer Backend with Blockchain Hash Chaining (MongoDB + LOGIN ADDED)
+// server.js - Consumer Backend with Blockchain Hash Chaining (MongoDB + LOGIN PROTECTION FIXED)
 // Run: node server.js
 
 const express = require('express');
@@ -7,7 +7,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const path = require('path');
 const crypto = require('crypto');
-const session = require('express-session'); // ← NEW for login
+const session = require('express-session'); // For login sessions
 
 const app = express();
 
@@ -19,17 +19,17 @@ app.use(cors({
 }));
 
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // for login form
+app.use(express.urlencoded({ extended: true })); // Needed for login form
 
 // ==================== LOGIN PROTECTION ====================
 app.use(session({
-  secret: 'change-this-to-strong-secret', // ← CHANGE THIS!
+  secret: 'change-this-to-a-very-strong-secret-key', // ← CHANGE THIS!
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false }
+  cookie: { secure: false } // Set to true if using HTTPS
 }));
 
-// Inline login page (no extra file needed)
+// Inline Login Page (no separate file needed)
 app.get('/login', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -39,11 +39,11 @@ app.get('/login', (req, res) => {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Admin Login</title>
       <style>
-        body { font-family: Arial, sans-serif; background: #f0f2f5; height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; }
-        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); width: 320px; text-align: center; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; }
+        .login-box { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 15px 35px rgba(0,0,0,0.3); width: 350px; text-align: center; }
         h2 { color: #333; margin-bottom: 30px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; }
+        button { width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; margin-top: 20px; }
         button:hover { background: #5a6fd8; }
       </style>
     </head>
@@ -61,11 +61,11 @@ app.get('/login', (req, res) => {
   `);
 });
 
-// Login POST
+// Login POST handler
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
-  // ← CHANGE THESE CREDENTIALS!
-  if (username === 'admin' && password === 'yourpassword123') {
+  // ← CHANGE THESE CREDENTIALS TO SOMETHING STRONG!
+  if (username === 'admin' && password === 'yourstrongpassword123') {
     req.session.loggedIn = true;
     res.redirect('/');
   } else {
@@ -82,7 +82,7 @@ function requireAuth(req, res, next) {
   }
 }
 
-// Protect QR generator dashboard
+// Protect the dashboard (QR generator page)
 app.get('/', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -92,7 +92,7 @@ mongoose.connect('mongodb+srv://harishkumar00666:Harish@2005@supplychain-cluster
   .then(() => console.log('✅ MongoDB Atlas Connected – Products Persist Forever!'))
   .catch(err => console.error('❌ MongoDB Connection Failed:', err));
 
-// Product Model for MongoDB
+// Product Model
 const productSchema = new mongoose.Schema({
   id: { type: Number, unique: true },
   name: String,
@@ -269,7 +269,6 @@ app.post('/api/products/sync', async (req, res) => {
     const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
     consumerProduct.qrCode = qrCodeUrl;
 
-    // Save to MongoDB
     const newProduct = new Product(consumerProduct);
     await newProduct.save();
 
@@ -334,42 +333,6 @@ app.get('/api/products/:id', async (req, res) => {
   }
 });
 
-app.use(express.static(__dirname));
-
-// Protect delete endpoint
-app.delete('/api/products/:id', requireAuth, async (req, res) => {
-  try {
-    const productId = parseInt(req.params.id);
-    const deleted = await Product.deleteOne({ id: productId });
-
-    if (deleted.deletedCount === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Product not found' 
-      });
-    }
-
-    await loadNextId();
-
-    console.log(`🗑️ Deleted product ID ${productId}`);
-    console.log(`📊 Next Product ID reset to: ${nextProductId}`);
-
-    return res.status(200).json({ 
-      success: true, 
-      message: 'Product deleted successfully',
-      deletedProductId: productId
-    });
-
-  } catch (error) {
-    console.error('❌ Delete error:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Failed to delete product',
-      details: error.message
-    });
-  }
-});
-
 app.get('/api/qrcode/:id', async (req, res) => {
   try {
     const product = await Product.findOne({ id: parseInt(req.params.id) });
@@ -402,6 +365,40 @@ app.get('/api/products/:id/verify', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Error' });
+  }
+});
+
+// Protect delete endpoint with login
+app.delete('/api/products/:id', requireAuth, async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    const deleted = await Product.deleteOne({ id: productId });
+
+    if (deleted.deletedCount === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Product not found' 
+      });
+    }
+
+    await loadNextId();
+
+    console.log(`🗑️ Deleted product ID ${productId}`);
+    console.log(`📊 Next Product ID reset to: ${nextProductId}`);
+
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Product deleted successfully',
+      deletedProductId: productId
+    });
+
+  } catch (error) {
+    console.error('❌ Delete error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to delete product',
+      details: error.message
+    });
   }
 });
 
@@ -530,6 +527,14 @@ app.post('/api/reset', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Reset failed' });
   }
+});
+
+// Serve static files AFTER login protection
+app.use(express.static(__dirname));
+
+// Catch-all route (protected)
+app.get('*', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
