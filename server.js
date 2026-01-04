@@ -7,6 +7,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const mongoose = require('mongoose'); // 🔹 ADDED FOR MONGODB
 
 const app = express();
 
@@ -18,6 +19,20 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// 🔹 ADDED FOR MONGODB CONNECTION
+mongoose.connect(
+  "mongodb+srv://Harish0204:Harish@2005@cluster1.npllh70.mongodb.net/supplychain",
+  { useNewUrlParser: true, useUnifiedTopology: true }
+).then(() => {
+  console.log("✅ MongoDB Connected");
+}).catch(err => {
+  console.error("❌ MongoDB Error:", err.message);
+});
+
+// 🔹 ADDED FOR MONGODB SCHEMA
+const productSchema = new mongoose.Schema({}, { strict: false });
+const Product = mongoose.model("Product", productSchema);
 
 const DB_FILE = path.join(__dirname, 'database.json');
 
@@ -130,7 +145,6 @@ function getProductImage(productName) {
 // ==================== API ROUTES ====================
 
 app.post('/api/products/sync', async (req, res) => {
-  // (exact same as before - no changes needed here)
   try {
     loadDatabase();
 
@@ -221,6 +235,9 @@ app.post('/api/products/sync', async (req, res) => {
 
     saveDatabase();
 
+    // 🔹 ADDED FOR MONGODB SAVE
+    await Product.create(consumerProduct);
+
     console.log(`✅ Product synced: Consumer ID ${consumerProductId}`);
 
     res.json({
@@ -237,16 +254,17 @@ app.post('/api/products/sync', async (req, res) => {
   }
 });
 
-app.get('/api/products', (req, res) => {
-  loadDatabase();
+app.get('/api/products', async (req, res) => {
+  // 🔹 ADDED FOR MONGODB READ
+  const products = await Product.find({});
   res.json({
     success: true,
-    count: Object.keys(consumerProducts).length,
-    products: Object.values(consumerProducts)
+    count: products.length,
+    products
   });
 });
 
-app.get('/api/products/:id', (req, res) => {
+app.get('/api/products/:id', async (req, res) => {
   loadDatabase();
   const productId = parseInt(req.params.id);
   const product = consumerProducts[productId];
@@ -259,6 +277,9 @@ app.get('/api/products/:id', (req, res) => {
   product.lastScanned = new Date().toISOString();
 
   saveDatabase();
+
+  // 🔹 ADDED FOR MONGODB UPDATE
+  await Product.updateOne({ id: productId }, { $set: { scanCount: product.scanCount, lastScanned: product.lastScanned } });
 
   const tamperCheck = verifyHashChain(product.journey);
   const analysis = analyzeProduct(product);
@@ -308,7 +329,7 @@ app.get('/api/products/:id/verify', (req, res) => {
   });
 });
 
-app.delete('/api/products/:id', (req, res) => {
+app.delete('/api/products/:id', async (req, res) => {
   loadDatabase();
   
   try {
@@ -341,6 +362,9 @@ app.delete('/api/products/:id', (req, res) => {
     }
 
     saveDatabase();
+
+    // 🔹 ADDED FOR MONGODB DELETE
+    await Product.deleteOne({ id: productId });
 
     console.log(`🗑️ Deleted product ID ${productId} (${productName})`);
     console.log(`📊 Next Product ID reset to: ${nextProductId}`);
@@ -477,11 +501,14 @@ app.get('/', (req, res) => {
 app.use(express.static(__dirname));
 
 // Reset endpoint
-app.post('/api/reset', (req, res) => {
+app.post('/api/reset', async (req, res) => {
   consumerProducts = {};
   nextProductId = 1;
   distributorToConsumerMap = {};
   saveDatabase();
+  
+  // 🔹 ADDED FOR MONGODB RESET
+  await Product.deleteMany({});
   
   console.log('🔄 Database reset! All products deleted, ID counter reset to 1');
   
