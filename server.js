@@ -22,7 +22,7 @@ app.use(express.json());
 
 // 🔹 ADDED FOR MONGODB CONNECTION
 mongoose.connect(
-  "mongodb+srv://Harish0204:Harish@2005%cluster1.npllh70.mongodb.net/supplychain",
+  "mongodb+srv://Harish0204:Harish2005@cluster1.npllh70.mongodb.net/supplychain",
   
 ).then(() => {
   console.log("✅ MongoDB Connected");
@@ -533,5 +533,6 @@ app.listen(PORT, () => {
 ╚═══════════════════════════════════════════╝
 `);
 });
+
 
 
