@@ -11,6 +11,6 @@
     "express": "^5.2.1",
     "qrcode": "^1.5.4",
     "mongoose": "^8.0.0" 
-    // 🔹 ADDED FOR MONGODB
+   
   }
 }
