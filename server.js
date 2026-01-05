@@ -266,8 +266,8 @@ app.get('/api/products', async (req, res) => {
 
 app.get('/api/products/:id', async (req, res) => {
   loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
+  const productId = req.params.id;
+  const product = await Product.findById(productId);
 
   if (!product) {
     return res.status(404).json({ success: false, error: 'Product not found' });
@@ -533,3 +533,4 @@ app.listen(PORT, () => {
 ╚═══════════════════════════════════════════╝
 `);
 });
+
