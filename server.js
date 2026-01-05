@@ -242,12 +242,15 @@ app.post('/api/products/sync', async (req, res) => {
     // Save to MongoDB FIRST to get _id
     const savedProduct = await Product.create(consumerProduct);
     
-    // Generate QR with MongoDB _id
+    // Generate QR with MongoDB _id (HTTPS + MongoDB ID)
     const publicUrl = `https://harish-supply-chain.onrender.com/product/${savedProduct._id}`;
+    console.log(`📱 Generated QR URL: ${publicUrl}`);
+    
     const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
     
     // Update MongoDB with QR code
-    await Product.findByIdAndUpdate(savedProduct._id, { qrCode: qrCodeUrl });
+    savedProduct.qrCode = qrCodeUrl;
+    await savedProduct.save();
 
     consumerProduct.qrCode = qrCodeUrl;
     consumerProducts[consumerProductId] = consumerProduct;
@@ -485,6 +488,35 @@ app.post('/api/reset', async (req, res) => {
     message: 'Database reset successfully',
     nextProductId: 1
   });
+});
+
+// 🔥 NEW: Fix old QR codes with MongoDB IDs
+app.post('/api/fix-qr-codes', async (req, res) => {
+  try {
+    const products = await Product.find({});
+    let fixed = 0;
+    
+    for (const product of products) {
+      // Generate new QR with MongoDB _id
+      const publicUrl = `https://harish-supply-chain.onrender.com/product/${product._id}`;
+      const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
+      
+      // Update product
+      product.qrCode = qrCodeUrl;
+      await product.save();
+      fixed++;
+      
+      console.log(`✅ Fixed QR for: ${product.name} (${product._id})`);
+    }
+    
+    res.json({
+      success: true,
+      message: `Fixed ${fixed} QR codes`,
+      fixed
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
