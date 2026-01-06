@@ -175,22 +175,6 @@
             justify-content: center;
             gap: 15px;
         }
-        .btn-confirm {
-            background: #dc3545;
-            color: white;
-            padding: 10px 30px;
-        }
-        .btn-confirm:hover {
-            background: #c82333;
-        }
-        .btn-cancel {
-            background: #6c757d;
-            color: white;
-            padding: 10px 30px;
-        }
-        .btn-cancel:hover {
-            background: #5a6268;
-        }
     </style>
 </head>
 <body>
@@ -224,6 +208,7 @@
     </div>
 
     <script>
+        // 🔧 FIXED: Always use your CURRENT Render backend
         const BASE_URL = "https://harish-supply-chain.onrender.com";
         const API_URL = `${BASE_URL}/api/products`;
 
@@ -266,10 +251,7 @@
 
         function showDeleteModal(product) {
             productToDelete = product;
-            // 🔥 FIX: Use _id for display, fallback to id or name
-            const displayId = product._id || product.id || 'Unknown';
-            const displayName = product.name || 'Unknown Product';
-            deleteMessage.textContent = `Are you sure you want to delete "${displayName}"?`;
+            deleteMessage.textContent = `Are you sure you want to delete "${product.name}" (ID: ${product.id})?`;
             deleteModal.style.display = "flex";
         }
 
@@ -278,18 +260,9 @@
             productToDelete = null;
         }
 
-        async function deleteProduct(product) {
+        async function deleteProduct(productId) {
             try {
-                // 🔥 FIX: Use MongoDB _id for deletion
-                const productId = product._id || product.id;
-                
-                if (!productId) {
-                    throw new Error('Product ID not found');
-                }
-
-                console.log('🗑️ Attempting to delete product:', productId);
-
-                const response = await fetch(`${BASE_URL}/api/products/${productId}`, {
+                const response = await fetch(`${API_URL.replace('/products', '')}/products/${productId}`, {
                     method: 'DELETE'
                 });
 
@@ -301,20 +274,11 @@
                 const data = await response.json();
                 if (!data.success) throw new Error(data.error || 'Delete failed');
 
-                // 🔥 FIX: Remove by _id
-                allProducts = allProducts.filter(p => (p._id || p.id) !== productId);
+                allProducts = allProducts.filter(p => p.id !== productId);
                 renderProducts(allProducts);
-                
-                statusDiv.className = 'connection-status status-connected';
-                statusDiv.textContent = `✅ Product deleted! ${allProducts.length} remaining`;
-                
-                setTimeout(() => {
-                    statusDiv.textContent = `✅ Connected (${allProducts.length} products)`;
-                }, 3000);
-                
+                alert('✅ Product deleted successfully!');
                 return true;
             } catch (err) {
-                console.error('Delete error:', err);
                 alert('❌ Error deleting: ' + err.message);
                 return false;
             }
@@ -333,19 +297,14 @@
                 const card = document.createElement("div");
                 card.className = "product-card";
 
-                // 🔥 FIX: Use _id for URL (MongoDB ID)
-                const productId = p._id || p.id || 'unknown';
-                const productUrl = `${BASE_URL}/product/${productId}`;
-                
-                // 🔥 FIX: Display readable ID (numeric id if available, otherwise short _id)
-                const displayId = p.id || (p._id ? p._id.substring(0, 8) : 'N/A');
+                const productUrl = `${BASE_URL}/product/${p.id}`;
 
                 card.innerHTML = `
-                    <div class="product-title">${p.name} (ID: ${displayId})</div>
+                    <div class="product-title">${p.name} (ID: ${p.id})</div>
                     <div class="product-info">
-                        Batch: ${p.batch || 'N/A'}<br>
-                        Origin: ${p.origin || 'N/A'}<br>
-                        Harvest: ${p.harvestDate || 'N/A'}<br>
+                        Batch: ${p.batch}<br>
+                        Origin: ${p.origin}<br>
+                        Harvest: ${p.harvestDate}<br>
                         👁️ ${p.scanCount || 0} scans
                     </div>
                     <span class="status-badge ${p.state === 2 ? 'verified' : 'pending'}">
@@ -372,7 +331,7 @@
                     if (p.qrCode) {
                         const a = document.createElement("a");
                         a.href = p.qrCode;
-                        a.download = `QR_${(p.name || 'product').replace(/\s+/g, '_')}_${displayId}.png`;
+                        a.download = `QR_${p.name.replace(/\s+/g, '_')}_ID${p.id}.png`;
                         a.click();
                     } else {
                         alert("QR not available");
@@ -398,13 +357,11 @@
                 if (!data.success) throw new Error(data.error || "Unknown error");
 
                 allProducts = data.products || [];
-                console.log('📦 Loaded products:', allProducts.length);
                 renderProducts(allProducts);
 
                 statusDiv.className = 'connection-status status-connected';
                 statusDiv.textContent = `✅ Loaded ${allProducts.length} products`;
             } catch (err) {
-                console.error('Load error:', err);
                 showError("Error: " + (err.message || "Failed to load"));
                 statusDiv.className = 'connection-status status-disconnected';
                 statusDiv.textContent = '❌ Failed to load products';
@@ -417,10 +374,9 @@
         searchInput.addEventListener("input", (e) => {
             const term = e.target.value.toLowerCase();
             const filtered = allProducts.filter(p =>
-                (p.name || '').toLowerCase().includes(term) ||
-                String(p.id || '').includes(term) ||
-                (p.batch || '').toLowerCase().includes(term) ||
-                (p._id || '').toLowerCase().includes(term)
+                p.name.toLowerCase().includes(term) ||
+                String(p.id).includes(term) ||
+                p.batch.toLowerCase().includes(term)
             );
             renderProducts(filtered);
         });
@@ -431,12 +387,10 @@
             if (productToDelete) {
                 confirmDeleteBtn.disabled = true;
                 confirmDeleteBtn.textContent = "Deleting...";
-                const success = await deleteProduct(productToDelete);
+                await deleteProduct(productToDelete.id);
                 confirmDeleteBtn.disabled = false;
                 confirmDeleteBtn.textContent = "Delete";
-                if (success) {
-                    hideDeleteModal();
-                }
+                hideDeleteModal();
             }
         });
 
