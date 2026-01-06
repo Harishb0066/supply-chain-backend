@@ -1,4 +1,4 @@
-// server.js - Consumer Backend with Blockchain Hash Chaining (CRASH FIXED)
+// server.js - Consumer Backend with Blockchain Hash Chaining + MongoDB
 // Run: node server.js
 
 const express = require('express');
@@ -7,6 +7,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 
 const app = express();
 
@@ -18,6 +19,19 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// 🔹 MONGODB CONNECTION
+mongoose.connect(
+  "mongodb+srv://Harish0204:Harish2005@cluster1.npllh70.mongodb.net/supplychain"
+).then(() => {
+  console.log("✅ MongoDB Connected");
+}).catch(err => {
+  console.error("❌ MongoDB Error:", err.message);
+});
+
+// 🔹 MONGODB SCHEMA
+const productSchema = new mongoose.Schema({}, { strict: false });
+const Product = mongoose.model("Product", productSchema);
 
 const DB_FILE = path.join(__dirname, 'database.json');
 
@@ -130,7 +144,6 @@ function getProductImage(productName) {
 // ==================== API ROUTES ====================
 
 app.post('/api/products/sync', async (req, res) => {
-  // (exact same as before - no changes needed here)
   try {
     loadDatabase();
 
@@ -221,6 +234,9 @@ app.post('/api/products/sync', async (req, res) => {
 
     saveDatabase();
 
+    // 🔹 MONGODB SAVE
+    await Product.create(consumerProduct);
+
     console.log(`✅ Product synced: Consumer ID ${consumerProductId}`);
 
     res.json({
@@ -237,83 +253,162 @@ app.post('/api/products/sync', async (req, res) => {
   }
 });
 
-app.get('/api/products', (req, res) => {
-  loadDatabase();
-  res.json({
-    success: true,
-    count: Object.keys(consumerProducts).length,
-    products: Object.values(consumerProducts)
-  });
-});
-
-app.get('/api/products/:id', (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
-
-  if (!product) {
-    return res.status(404).json({ success: false, error: 'Product not found' });
+app.get('/api/products', async (req, res) => {
+  // 🔹 MONGODB READ
+  try {
+    const products = await Product.find({});
+    res.json({
+      success: true,
+      count: products.length,
+      products
+    });
+  } catch (error) {
+    console.error('❌ Error fetching products:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch products',
+      details: error.message
+    });
   }
-
-  product.scanCount++;
-  product.lastScanned = new Date().toISOString();
-
-  saveDatabase();
-
-  const tamperCheck = verifyHashChain(product.journey);
-  const analysis = analyzeProduct(product);
-
-  console.log(`🔍 Product ${productId} scanned (Total scans: ${product.scanCount})`);
-  console.log(`🔐 Tamper check: ${tamperCheck.message}`);
-
-  res.json({
-    success: true,
-    product,
-    journey: product.journey,
-    analysis,
-    tamperDetection: tamperCheck
-  });
 });
 
-app.get('/api/qrcode/:id', (req, res) => {
-  loadDatabase();
-  const product = consumerProducts[req.params.id];
-  if (!product || !product.qrCode) {
-    return res.status(404).json({ error: 'QR code not found' });
-  }
-  res.json({ success: true, qrCode: product.qrCode });
-});
-
-app.get('/api/products/:id/verify', (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
-
-  if (!product) {
-    return res.status(404).json({ success: false, error: 'Product not found' });
-  }
-
-  const verification = verifyHashChain(product.journey);
-
-  res.json({
-    success: true,
-    productId,
-    productName: product.name,
-    verification,
-    journey: product.journey.map(block => ({
-      role: block.role,
-      hash: block.hash.substring(0, 16) + '...',
-      previousHash: block.previousHash.substring(0, 16) + '...'
-    }))
-  });
-});
-
-app.delete('/api/products/:id', (req, res) => {
-  loadDatabase();
-  
+app.get('/api/products/:id', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
-    const product = consumerProducts[productId];
+    
+    // Try MongoDB first
+    let product = await Product.findOne({ id: productId });
+    
+    if (!product) {
+      // Fallback to memory (for backward compatibility)
+      loadDatabase();
+      product = consumerProducts[productId];
+    }
+
+    if (!product) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    // Update scan count
+    const scanCount = (product.scanCount || 0) + 1;
+    const lastScanned = new Date().toISOString();
+
+    // Update in memory
+    if (consumerProducts[productId]) {
+      consumerProducts[productId].scanCount = scanCount;
+      consumerProducts[productId].lastScanned = lastScanned;
+      saveDatabase();
+    }
+
+    // 🔹 MONGODB UPDATE
+    await Product.updateOne(
+      { id: productId }, 
+      { $set: { scanCount, lastScanned } }
+    );
+
+    // Update product object for response
+    product.scanCount = scanCount;
+    product.lastScanned = lastScanned;
+
+    const tamperCheck = verifyHashChain(product.journey);
+    const analysis = analyzeProduct(product);
+
+    console.log(`🔍 Product ${productId} scanned (Total scans: ${scanCount})`);
+    console.log(`🔐 Tamper check: ${tamperCheck.message}`);
+
+    res.json({
+      success: true,
+      product,
+      journey: product.journey,
+      analysis,
+      tamperDetection: tamperCheck
+    });
+  } catch (error) {
+    console.error('❌ Error fetching product:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch product',
+      details: error.message
+    });
+  }
+});
+
+app.get('/api/qrcode/:id', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    
+    // Try MongoDB first
+    let product = await Product.findOne({ id: productId });
+    
+    if (!product) {
+      // Fallback to memory
+      loadDatabase();
+      product = consumerProducts[productId];
+    }
+
+    if (!product || !product.qrCode) {
+      return res.status(404).json({ error: 'QR code not found' });
+    }
+
+    res.json({ success: true, qrCode: product.qrCode });
+  } catch (error) {
+    console.error('❌ Error fetching QR code:', error);
+    res.status(500).json({ error: 'Failed to fetch QR code', details: error.message });
+  }
+});
+
+app.get('/api/products/:id/verify', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    
+    // Try MongoDB first
+    let product = await Product.findOne({ id: productId });
+    
+    if (!product) {
+      // Fallback to memory
+      loadDatabase();
+      product = consumerProducts[productId];
+    }
+
+    if (!product) {
+      return res.status(404).json({ success: false, error: 'Product not found' });
+    }
+
+    const verification = verifyHashChain(product.journey);
+
+    res.json({
+      success: true,
+      productId,
+      productName: product.name,
+      verification,
+      journey: product.journey.map(block => ({
+        role: block.role,
+        hash: block.hash.substring(0, 16) + '...',
+        previousHash: block.previousHash.substring(0, 16) + '...'
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Error verifying product:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to verify product',
+      details: error.message
+    });
+  }
+});
+
+app.delete('/api/products/:id', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    
+    // Try MongoDB first
+    let product = await Product.findOne({ id: productId });
+    
+    if (!product) {
+      // Fallback to memory
+      loadDatabase();
+      product = consumerProducts[productId];
+    }
 
     if (!product) {
       return res.status(404).json({ 
@@ -324,6 +419,7 @@ app.delete('/api/products/:id', (req, res) => {
 
     const productName = product.name;
 
+    // Delete from memory
     delete consumerProducts[productId];
 
     for (const distId in distributorToConsumerMap) {
@@ -341,6 +437,9 @@ app.delete('/api/products/:id', (req, res) => {
     }
 
     saveDatabase();
+
+    // 🔹 MONGODB DELETE
+    await Product.deleteOne({ id: productId });
 
     console.log(`🗑️ Deleted product ID ${productId} (${productName})`);
     console.log(`📊 Next Product ID reset to: ${nextProductId}`);
@@ -362,93 +461,120 @@ app.delete('/api/products/:id', (req, res) => {
   }
 });
 
-app.get('/product/:id', (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
+app.get('/product/:id', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    
+    // Try MongoDB first
+    let product = await Product.findOne({ id: productId });
+    
+    if (!product) {
+      // Fallback to memory
+      loadDatabase();
+      product = consumerProducts[productId];
+    }
 
-  if (!product) {
-    return res.status(404).send(`
+    if (!product) {
+      return res.status(404).send(`
+        <html>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h2>Product Not Found</h2>
+            <p>Invalid Product ID: ${productId}</p>
+            <p style="color: #666;">This product may have been deleted or never existed.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    const analysis = analyzeProduct(product);
+    const tamperCheck = verifyHashChain(product.journey);
+
+    let html = `
+      <html>
+        <head>
+          <title>${product.name} - Supply Chain Verification</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; background: #f9f9f9; }
+            h2 { color: #333; }
+            .status { font-weight: bold; font-size: 1.6em; margin-bottom: 10px; }
+            .suspicious { color: orange; }
+            .authentic { color: green; }
+            img { max-width: 100%; height: auto; border-radius: 10px; margin: 15px 0; }
+            ul { list-style: none; padding-left: 0; }
+            li { margin: 15px 0; padding-left: 15px; border-left: 4px solid #ccc; }
+            hr { border: none; border-top: 1px solid #eee; margin: 25px 0; }
+          </style>
+        </head>
+        <body>
+          <h2 class="status ${analysis.status.toLowerCase()}">${analysis.status}</h2>
+          <h2>🛒 ${product.name}</h2>
+
+          <img src="${product.image}" alt="${product.name}" />
+
+          <p><b>Origin:</b> ${product.origin}</p>
+          <p><b>Batch ID:</b> ${product.batch}</p>
+          <p><b>Harvest Date:</b> ${product.harvestDate}</p>
+          <p><b>Current Stage:</b> ${product.state === 2 ? "🏪 Retail" : "⏳ In Transit"}</p>
+          <p><b>Description:</b><br>${product.description}</p>
+          <p>${analysis.message}</p>
+          <p><b>Scanned:</b> ${new Date().toLocaleString()}</p>
+
+          <hr />
+
+          <h3>📜 Product Journey</h3>
+          <ul>
+    `;
+
+    product.journey.forEach(step => {
+      html += `
+        <li>
+          <b>${step.role}</b> – ${step.location}<br>
+          🕒 ${new Date(step.timestamp).toLocaleString()}
+        </li>
+      `;
+    });
+
+    html += `
+          </ul>
+
+          <p><b>Tamper Detection:</b> ${tamperCheck.valid ? "✅ No tampering detected" : "❌ " + tamperCheck.message}</p>
+          <p>🤖 AI-powered verification</p>
+        </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (error) {
+    console.error('❌ Error rendering product page:', error);
+    res.status(500).send(`
       <html>
         <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2>Product Not Found</h2>
-          <p>Invalid Product ID: ${productId}</p>
-          <p style="color: #666;">This product may have been deleted or never existed.</p>
+          <h2>Error Loading Product</h2>
+          <p style="color: #ef4444;">${error.message}</p>
         </body>
       </html>
     `);
   }
-
-  const analysis = analyzeProduct(product);
-  const tamperCheck = verifyHashChain(product.journey);
-
-  let html = `
-    <html>
-      <head>
-        <title>${product.name} - Supply Chain Verification</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-          body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; background: #f9f9f9; }
-          h2 { color: #333; }
-          .status { font-weight: bold; font-size: 1.6em; margin-bottom: 10px; }
-          .suspicious { color: orange; }
-          .authentic { color: green; }
-          img { max-width: 100%; height: auto; border-radius: 10px; margin: 15px 0; }
-          ul { list-style: none; padding-left: 0; }
-          li { margin: 15px 0; padding-left: 15px; border-left: 4px solid #ccc; }
-          hr { border: none; border-top: 1px solid #eee; margin: 25px 0; }
-        </style>
-      </head>
-      <body>
-        <h2 class="status ${analysis.status.toLowerCase()}">${analysis.status}</h2>
-        <h2>🛒 ${product.name}</h2>
-
-        <img src="${product.image}" alt="${product.name}" />
-
-        <p><b>Origin:</b> ${product.origin}</p>
-        <p><b>Batch ID:</b> ${product.batch}</p>
-        <p><b>Harvest Date:</b> ${product.harvestDate}</p>
-        <p><b>Current Stage:</b> ${product.state === 2 ? "🏪 Retail" : "⏳ In Transit"}</p>
-        <p><b>Description:</b><br>${product.description}</p>
-        <p>${analysis.message}</p>
-        <p><b>Scanned:</b> ${new Date().toLocaleString()}</p>
-
-        <hr />
-
-        <h3>📜 Product Journey</h3>
-        <ul>
-  `;
-
-  product.journey.forEach(step => {
-    html += `
-      <li>
-        <b>${step.role}</b> – ${step.location}<br>
-        🕒 ${new Date(step.timestamp).toLocaleString()}
-      </li>
-    `;
-  });
-
-  html += `
-        </ul>
-
-        <p><b>Tamper Detection:</b> ${tamperCheck.valid ? "✅ No tampering detected" : "❌ " + tamperCheck.message}</p>
-        <p>🤖 AI-powered verification</p>
-      </body>
-    </html>
-  `;
-
-  res.send(html);
 });
 
-app.get('/health', (req, res) => {
-  loadDatabase();
-  res.json({
-    status: 'healthy',
-    productsCount: Object.keys(consumerProducts).length,
-    nextProductId: nextProductId,
-    time: new Date().toISOString(),
-    features: ['Hash Chaining', 'Tamper Detection', 'Cryptographic Verification', 'CORS Enabled']
-  });
+app.get('/health', async (req, res) => {
+  try {
+    const mongoProducts = await Product.countDocuments();
+    
+    res.json({
+      status: 'healthy',
+      productsCount: mongoProducts,
+      nextProductId: nextProductId,
+      time: new Date().toISOString(),
+      features: ['Hash Chaining', 'Tamper Detection', 'Cryptographic Verification', 'CORS Enabled', 'MongoDB Persistence']
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'unhealthy',
+      error: error.message
+    });
+  }
 });
 
 function analyzeProduct(product) {
@@ -466,30 +592,40 @@ function analyzeProduct(product) {
   };
 }
 
-// ==================== FRONTEND SERVING (SAFE & CORRECT ORDER) ====================
+// ==================== FRONTEND SERVING ====================
 
-// Serve dashboard at root
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Serve static files (including index.html for direct access if needed)
 app.use(express.static(__dirname));
 
 // Reset endpoint
-app.post('/api/reset', (req, res) => {
-  consumerProducts = {};
-  nextProductId = 1;
-  distributorToConsumerMap = {};
-  saveDatabase();
-  
-  console.log('🔄 Database reset! All products deleted, ID counter reset to 1');
-  
-  res.json({
-    success: true,
-    message: 'Database reset successfully',
-    nextProductId: 1
-  });
+app.post('/api/reset', async (req, res) => {
+  try {
+    consumerProducts = {};
+    nextProductId = 1;
+    distributorToConsumerMap = {};
+    saveDatabase();
+    
+    // 🔹 MONGODB RESET
+    await Product.deleteMany({});
+    
+    console.log('🔄 Database reset! All products deleted, ID counter reset to 1');
+    
+    res.json({
+      success: true,
+      message: 'Database reset successfully',
+      nextProductId: 1
+    });
+  } catch (error) {
+    console.error('❌ Reset error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reset database',
+      details: error.message
+    });
+  }
 });
 
 const PORT = process.env.PORT || 3000;
@@ -498,11 +634,11 @@ app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════╗
 ║ 🚀 Consumer Backend running on ${PORT}      ║
-║ 💾 Persistent DB enabled                  ║
+║ 💾 MongoDB Persistence: ✅                ║
 ║ 🔗 Blockchain Hash Chaining: ✅           ║
 ║ 🔐 Tamper Detection: ✅                   ║
 ║ 🌐 CORS: ✅ (All origins)                 ║
-║ 📊 Next Product ID: ${nextProductId}       ║
+║ 📊 Next Product ID: ${nextProductId}                    ║
 ╚═══════════════════════════════════════════╝
 `);
 });
