@@ -1,4 +1,4 @@
-// server.js - FULL UPDATED VERSION (Journey fixed + QR retry reliable)
+// server.js - FULL WORKING VERSION (Journey fixed + QR retry + No errors)
 // Run: node server.js
 
 const express = require('express');
@@ -44,6 +44,10 @@ function createHash(data) {
 }
 
 function verifyHashChain(journey) {
+  if (!journey || !Array.isArray(journey) || journey.length === 0) {
+    return { valid: false, message: "Invalid or empty journey chain" };
+  }
+
   for (let i = 1; i < journey.length; i++) {
     const currentBlock = journey[i];
     const previousBlock = journey[i - 1];
@@ -203,7 +207,7 @@ app.post('/api/products/sync', async (req, res) => {
       image: foodImage
     };
 
-    // Journey block generation (this was missing before!)
+    // Journey block generation
     const farmerTime = new Date(timestamp || Date.now());
     const distributorTime = new Date(farmerTime.getTime() + (2 * 60 * 60 * 1000));
     const retailTime = new Date(distributorTime.getTime() + (8 * 60 * 60 * 1000));
@@ -282,7 +286,7 @@ app.post('/api/products/sync', async (req, res) => {
     res.json({
       success: true,
       consumerProductId,
-      mongoId: savedProduct._id,
+      mongoId: savedProduct._id.toString(),
       qrCode: qrCodeUrl,
       product: consumerProduct,
       hashChainVerified: verification.valid
@@ -327,7 +331,7 @@ app.get('/api/products/:id/verify', async (req, res) => {
 
     res.json({
       success: true,
-      productId: product._id,
+      productId: product._id.toString(),
       productName: product.name,
       verification,
       journey: product.journey.map(block => ({
@@ -344,6 +348,11 @@ app.get('/api/products/:id/verify', async (req, res) => {
 // FIXED DELETE ENDPOINT
 app.delete('/api/products/:id', async (req, res) => {
   try {
+    // Validate ID is not undefined
+    if (!req.params.id || req.params.id === 'undefined') {
+      return res.status(400).json({ success: false, error: 'Invalid product ID' });
+    }
+
     const deletedProduct = await Product.findByIdAndDelete(req.params.id);
 
     if (!deletedProduct) {
@@ -358,7 +367,7 @@ app.delete('/api/products/:id', async (req, res) => {
     return res.status(200).json({ 
       success: true, 
       message: 'Product deleted successfully',
-      deletedProductId: deletedProduct._id,
+      deletedProductId: deletedProduct._id.toString(),
       deletedProductName: deletedProduct.name
     });
 
@@ -372,9 +381,13 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
-// PRODUCT DISPLAY ROUTE
+// FIXED PRODUCT DISPLAY ROUTE
 app.get('/product/:id', async (req, res) => {
   try {
+    if (!req.params.id || req.params.id === 'undefined') {
+      return res.status(400).send('Invalid product ID');
+    }
+
     const product = await Product.findById(req.params.id);
 
     if (!product) {
