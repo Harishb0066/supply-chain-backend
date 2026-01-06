@@ -7,146 +7,190 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            background: url('https://source.unsplash.com/1600x900/?food,supply-chain') no-repeat center center fixed;
+            background: url('https://source.unsplash.com/random/1600x900/?agriculture,farm,food,supply-chain') no-repeat center center fixed;
             background-size: cover;
             margin: 0;
             padding: 20px;
+            min-height: 100vh;
             color: #333;
         }
         h1 {
             text-align: center;
-            color: #fff;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
         }
         #controls {
             text-align: center;
-            margin-bottom: 20px;
-        }
-        #search {
-            padding: 10px;
-            width: 300px;
-            font-size: 16px;
-        }
-        #refresh {
-            padding: 10px 20px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-left: 10px;
-        }
-        #refresh:hover {
-            background: #45a049;
-        }
-        #loading {
-            text-align: center;
-            font-size: 18px;
-            color: #fff;
-            margin: 50px 0;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-        }
-        .product-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        .product-card {
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            padding: 20px;
-            text-align: center;
-            transition: transform 0.2s;
-            position: relative;
-        }
-        .product-card:hover {
-            transform: translateY(-5px);
-        }
-        .product-title {
-            font-size: 1.4em;
-            margin: 10px 0;
-            color: #2c3e50;
-        }
-        .product-info {
-            color: #7f8c8d;
-            margin-bottom: 15px;
-            font-size: 0.9em;
-        }
-        .status-badge {
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.9em;
-            font-weight: bold;
-            display: inline-block;
-            margin-bottom: 10px;
-        }
-        .verified { background: #d4edda; color: #155724; }
-        .pending { background: #fff3cd; color: #856404; }
-        .qr-container {
-            margin: 15px auto;
-            width: 180px;
-            height: 180px;
+            margin-bottom: 30px;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .qr-container img {
-            width: 180px;
-            height: 180px;
-            border-radius: 8px;
-        }
-        .actions {
-            margin-top: 10px;
-            display: flex;
-            justify-content: center;
-            gap: 8px;
+            gap: 15px;
             flex-wrap: wrap;
         }
-        .btn {
-            padding: 8px 16px;
+        #search {
+            padding: 12px 20px;
+            width: 350px;
+            border-radius: 30px;
+            border: 1px solid #ccc;
+            font-size: 16px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+        }
+        #refresh {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 30px;
             cursor: pointer;
-            font-size: 0.9em;
-            font-weight: 500;
-            transition: all 0.2s;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: all 0.3s;
         }
-        .btn-copy { background: #007bff; color: white; }
-        .btn-copy:hover { background: #0056b3; }
-        .btn-download { background: #28a745; color: white; }
-        .btn-download:hover { background: #218838; }
-        .btn-delete { background: #dc3545; color: white; }
-        .btn-delete:hover { background: #c82333; }
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        #refresh:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.3);
         }
-        .error { 
-            color: red; 
-            text-align: center; 
-            padding: 20px;
+        #loading {
+            text-align: center;
+            font-size: 20px;
+            color: #fff;
+            margin: 60px 0;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+        }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+        }
+        .product-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .product-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        }
+        .product-title {
+            font-size: 1.8em;
+            margin: 15px 0;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        .product-info {
+            color: #555;
+            line-height: 1.8;
+            font-size: 1em;
+            margin-bottom: 20px;
+        }
+        .status-badge {
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 1em;
+            display: inline-block;
+            margin: 20px 0;
+        }
+        .verified {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            color: #155724;
+        }
+        .pending {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            color: #856404;
+        }
+        .qr-container {
+            width: 220px;
+            height: 220px;
+            margin: 25px auto;
+            background: #f8f9fa;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .qr-container img {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 12px;
+        }
+        .actions {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 25px;
+        }
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1em;
+            transition: all 0.3s;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .btn-copy {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+        }
+        .btn-copy:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(0,123,255,0.4);
+        }
+        .btn-download {
+            background: linear-gradient(135deg, #28a745, #218838);
+            color: white;
+        }
+        .btn-download:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(40,167,69,0.4);
+        }
+        .btn-delete {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+        }
+        .btn-delete:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(220,53,69,0.4);
         }
         .connection-status {
             text-align: center;
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            font-weight: 600;
-            color: #fff;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
         }
-        .status-connected {
-            background: rgba(212, 237, 218, 0.8);
-            color: #155724;
-        }
-        .status-disconnected {
-            background: rgba(248, 215, 218, 0.8);
-            color: #721c24;
+        .error { 
+            color: #dc3545; 
+            text-align: center; 
+            padding: 30px;
+            font-size: 1.2em;
+            background: rgba(220,53,69,0.1);
+            border-radius: 15px;
         }
 
         /* Modal styles */
@@ -158,99 +202,112 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
+            background-color: rgba(0,0,0,0.7);
             justify-content: center;
             align-items: center;
         }
         .modal-content {
             background-color: white;
-            padding: 30px;
-            border-radius: 10px;
+            padding: 40px;
+            border-radius: 20px;
             width: 90%;
-            max-width: 400px;
+            max-width: 500px;
             text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+            animation: modalFadeIn 0.3s ease;
+        }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
         }
         .modal-content h3 {
             margin-top: 0;
             color: #dc3545;
+            font-size: 1.8em;
+        }
+        .modal-content p {
+            font-size: 1.1em;
+            color: #555;
         }
         .modal-buttons {
-            margin-top: 20px;
+            margin-top: 30px;
             display: flex;
             justify-content: center;
-            gap: 15px;
+            gap: 20px;
         }
         .btn-confirm {
-            background: #dc3545;
+            background: linear-gradient(135deg, #dc3545, #c82333);
             color: white;
-            padding: 10px 30px;
+            padding: 12px 35px;
+            font-size: 1.1em;
+            border-radius: 30px;
         }
         .btn-confirm:hover {
-            background: #c82333;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(220,53,69,0.4);
         }
         .btn-cancel {
-            background: #6c757d;
+            background: linear-gradient(135deg, #6c757d, #5a6268);
             color: white;
-            padding: 10px 30px;
+            padding: 12px 35px;
+            font-size: 1.1em;
+            border-radius: 30px;
         }
         .btn-cancel:hover {
-            background: #5a6268;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(108,117,125,0.4);
         }
 
         /* Responsive Design */
-        @media (max-width: 768px) {
+        @media (max-width: 992px) {
             .product-grid {
-                grid-template-columns: 1fr; /* Single column on small screens */
-            }
-            #search {
-                width: 80%;
-            }
-            .product-card {
-                padding: 15px;
-            }
-            .qr-container img {
-                width: 150px;
-                height: 150px;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             }
         }
+        @media (max-width: 768px) {
+            h1 { font-size: 2em; }
+            .container { padding: 20px; }
+            #controls { flex-direction: column; }
+            #search { width: 100%; margin-bottom: 15px; }
+            .product-grid { grid-template-columns: 1fr; }
+            .qr-container { width: 180px; height: 180px; }
+        }
         @media (max-width: 480px) {
-            h1 {
-                font-size: 1.5em;
-            }
-            .btn {
-                padding: 6px 12px;
-                font-size: 0.8em;
-            }
+            h1 { font-size: 1.8em; }
+            .product-title { font-size: 1.5em; }
+            .btn { padding: 10px 20px; font-size: 0.9em; }
+            .modal-content { padding: 30px; }
         }
     </style>
 </head>
 <body>
-    <h1>📱 All Products QR Codes</h1>
+    <div class="container">
+        <h1>📱 All Products QR Codes</h1>
 
-    <div id="connectionStatus" class="connection-status">
-        ⏳ Checking connection...
-    </div>
+        <div id="connectionStatus" class="connection-status">
+            ⏳ Checking connection...
+        </div>
 
-    <div id="controls">
-        <input type="text" id="search" placeholder="🔍 Search by name or ID...">
-        <button id="refresh">🔄 Refresh Now</button>
-    </div>
+        <div id="controls">
+            <input type="text" id="search" placeholder="🔍 Search by name or ID...">
+            <button id="refresh">🔄 Refresh Now</button>
+        </div>
 
-    <div id="loading">Loading products...</div>
-    <div id="error" class="error" style="display:none;"></div>
+        <div id="loading">Loading products...</div>
+        <div id="error" class="error" style="display:none;"></div>
 
-    <div class="product-grid" id="products"></div>
+        <div class="product-grid" id="products"></div>
 
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="modal">
-        <div class="modal-content">
-            <h3>⚠️ Delete Product?</h3>
-            <p id="deleteMessage"></p>
-            <p style="color: #666; font-size: 0.9em;">This action cannot be undone.</p>
-            <div class="modal-buttons">
-                <button class="btn btn-confirm" id="confirmDelete">Delete</button>
-                <button class="btn btn-cancel" id="cancelDelete">Cancel</button>
+        <!-- Delete Confirmation Modal -->
+        <div id="deleteModal" class="modal">
+            <div class="modal-content">
+                <h3>⚠️ Delete Product?</h3>
+                <p id="deleteMessage"></p>
+                <p style="color: #666; font-size: 0.9em;">This action cannot be undone.</p>
+                <div class="modal-buttons">
+                    <button class="btn btn-confirm" id="confirmDelete">Delete</button>
+                    <button class="btn btn-cancel" id="cancelDelete">Cancel</button>
+                </div>
             </div>
         </div>
     </div>
@@ -258,7 +315,7 @@
     <script>
         const BASE_URL = "https://harish-supply-chain.onrender.com";
         const API_URL = `${BASE_URL}/api/products`;
-        const ADMIN_PASSWORD = "admin123"; // Change this to your secret password
+        const ADMIN_PASSWORD = "harish2005"; // CHANGE THIS TO YOUR OWN SECRET PASSWORD!
 
         const productsContainer = document.getElementById("products");
         const loading = document.getElementById("loading");
@@ -300,7 +357,8 @@
         function showDeleteModal(product) {
             productToDelete = product;
             const displayName = product.name || 'Unknown Product';
-            deleteMessage.textContent = `Are you sure you want to delete "${displayName}"?`;
+            const displayId = product._id ? product._id.toString().substring(0, 8) + '...' : 'N/A';
+            deleteMessage.innerHTML = `Are you sure you want to delete "<strong>${displayName}</strong>" (ID: ${displayId})?`;
             deleteModal.style.display = "flex";
         }
 
@@ -311,14 +369,14 @@
 
         async function deleteProduct(product) {
             try {
-                const userPassword = prompt("Enter admin password to delete:");
-                if (userPassword !== ADMIN_PASSWORD) {
-                    alert('❌ Incorrect password. Delete cancelled.');
+                const password = prompt("🔐 Enter admin password to delete this product:");
+                if (password !== ADMIN_PASSWORD) {
+                    alert("❌ Incorrect password. Only admin can delete products.");
                     return false;
                 }
 
                 const productId = product._id;
-                if (!productId || productId === 'undefined') throw new Error('Invalid product ID');
+                if (!productId) throw new Error('Product ID not found');
 
                 const response = await fetch(`${BASE_URL}/api/products/${productId}`, {
                     method: 'DELETE'
@@ -340,7 +398,7 @@
                 
                 setTimeout(() => {
                     statusDiv.textContent = `✅ Connected (${allProducts.length} products)`;
-                }, 3000);
+                }, 4000);
                 
                 return true;
             } catch (err) {
@@ -355,7 +413,7 @@
             loading.style.display = "none";
 
             if (products.length === 0) {
-                productsContainer.innerHTML = "<p class='error' style='grid-column: 1 / -1; text-align:center;'>No products found.</p>";
+                productsContainer.innerHTML = "<p class='error' style='grid-column: 1 / -1; text-align:center; font-size: 1.5em; padding: 60px;'>No products found yet. Sync some from distributor!</p>";
                 return;
             }
 
@@ -366,8 +424,7 @@
                 const productId = p._id;
                 const productUrl = `${BASE_URL}/product/${productId}`;
                 
-                // Fixed ID display: Use numeric id if available, else short _id
-                const displayId = p.id ? p.id : (p._id ? p._id.toString().substring(0, 8) + '...' : 'N/A');
+                const displayId = p._id ? p._id.toString().substring(0, 8) + '...' : 'N/A';
 
                 card.innerHTML = `
                     <div class="product-title">${p.name} (ID: ${displayId})</div>
@@ -381,7 +438,7 @@
                         ${p.state === 2 ? '✓ Retail' : '⏳ In Transit'}
                     </span>
                     <div class="qr-container">
-                        <img src="${p.qrCode || 'https://via.placeholder.com/180?text=QR+Generating...'}" 
+                        <img src="${p.qrCode || 'https://via.placeholder.com/220?text=QR+Generating...'}" 
                              alt="QR Code">
                     </div>
                     <div class="actions">
@@ -391,11 +448,13 @@
                     </div>
                 `;
 
+                // Copy Link
                 card.querySelector(".btn-copy").onclick = () => {
                     navigator.clipboard.writeText(productUrl);
-                    alert("Link copied!");
+                    alert("🔗 Product link copied to clipboard!");
                 };
 
+                // Download QR
                 card.querySelector(".btn-download").onclick = () => {
                     if (p.qrCode) {
                         const a = document.createElement("a");
@@ -403,10 +462,11 @@
                         a.download = `QR_${(p.name || 'product').replace(/\s+/g, '_')}_${displayId}.png`;
                         a.click();
                     } else {
-                        alert("QR code not ready yet. Wait a moment and refresh.");
+                        alert("⏳ QR code is still generating. Please wait a moment and refresh.");
                     }
                 };
 
+                // Delete (Admin only)
                 card.querySelector(".btn-delete").onclick = () => showDeleteModal(p);
 
                 productsContainer.appendChild(card);
@@ -433,7 +493,7 @@
                 statusDiv.textContent = `✅ Loaded ${allProducts.length} products`;
             } catch (err) {
                 console.error('Load error:', err);
-                showError("Error: " + (err.message || "Failed to load"));
+                showError("Failed to load products. Check connection or backend.");
                 statusDiv.className = 'connection-status status-disconnected';
                 statusDiv.textContent = '❌ Failed to load products';
             } finally {
@@ -446,7 +506,6 @@
             const term = e.target.value.toLowerCase();
             const filtered = allProducts.filter(p =>
                 (p.name || '').toLowerCase().includes(term) ||
-                String(p.id || '').includes(term) ||
                 (p.batch || '').toLowerCase().includes(term) ||
                 (p._id || '').toLowerCase().includes(term)
             );
@@ -473,7 +532,7 @@
             if (e.target === deleteModal) hideDeleteModal();
         });
 
-        // Auto-refresh every 5 minutes
+        // Auto-refresh every 5 minutes (300000 ms)
         setInterval(loadProducts, 300000);
 
         // Initial load
