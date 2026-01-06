@@ -1,4 +1,4 @@
-// server.js - Consumer Backend with Admin Authentication
+// server.js - Consumer Backend with Blockchain Hash Chaining (CRASH FIXED)
 // Run: node server.js
 
 const express = require('express');
@@ -20,9 +20,6 @@ app.use(cors({
 app.use(express.json());
 
 const DB_FILE = path.join(__dirname, 'database.json');
-
-// 🔐 ADMIN PASSWORD - Change this to something secure!
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
 let consumerProducts = {};
 let nextProductId = 1;
@@ -107,20 +104,6 @@ function saveDatabase() {
   }
 }
 
-// Middleware to verify admin password
-function verifyAdmin(req, res, next) {
-  const password = req.headers['x-admin-password'] || req.body.password;
-  
-  if (password !== ADMIN_PASSWORD) {
-    return res.status(401).json({ 
-      success: false, 
-      error: 'Unauthorized - Invalid admin password' 
-    });
-  }
-  
-  next();
-}
-
 loadDatabase();
 
 console.log('🚀 Starting Consumer Backend...');
@@ -147,6 +130,7 @@ function getProductImage(productName) {
 // ==================== API ROUTES ====================
 
 app.post('/api/products/sync', async (req, res) => {
+  // (exact same as before - no changes needed here)
   try {
     loadDatabase();
 
@@ -238,7 +222,6 @@ app.post('/api/products/sync', async (req, res) => {
     saveDatabase();
 
     console.log(`✅ Product synced: Consumer ID ${consumerProductId}`);
-    console.log(`📱 QR Code generated: ${qrCodeUrl.substring(0, 50)}...`);
 
     res.json({
       success: true,
@@ -256,23 +239,10 @@ app.post('/api/products/sync', async (req, res) => {
 
 app.get('/api/products', (req, res) => {
   loadDatabase();
-  
-  const productsArray = Object.values(consumerProducts);
-  
-  console.log(`📦 Returning ${productsArray.length} products`);
-  if (productsArray.length > 0) {
-    console.log('📋 Sample product:', {
-      id: productsArray[0].id,
-      name: productsArray[0].name,
-      hasQR: !!productsArray[0].qrCode,
-      qrLength: productsArray[0].qrCode?.length
-    });
-  }
-  
   res.json({
     success: true,
-    count: productsArray.length,
-    products: productsArray
+    count: Object.keys(consumerProducts).length,
+    products: Object.values(consumerProducts)
   });
 });
 
@@ -305,8 +275,40 @@ app.get('/api/products/:id', (req, res) => {
   });
 });
 
-// 🔐 PROTECTED: Delete single product (requires admin password)
-app.delete('/api/products/:id', verifyAdmin, (req, res) => {
+app.get('/api/qrcode/:id', (req, res) => {
+  loadDatabase();
+  const product = consumerProducts[req.params.id];
+  if (!product || !product.qrCode) {
+    return res.status(404).json({ error: 'QR code not found' });
+  }
+  res.json({ success: true, qrCode: product.qrCode });
+});
+
+app.get('/api/products/:id/verify', (req, res) => {
+  loadDatabase();
+  const productId = parseInt(req.params.id);
+  const product = consumerProducts[productId];
+
+  if (!product) {
+    return res.status(404).json({ success: false, error: 'Product not found' });
+  }
+
+  const verification = verifyHashChain(product.journey);
+
+  res.json({
+    success: true,
+    productId,
+    productName: product.name,
+    verification,
+    journey: product.journey.map(block => ({
+      role: block.role,
+      hash: block.hash.substring(0, 16) + '...',
+      previousHash: block.previousHash.substring(0, 16) + '...'
+    }))
+  });
+});
+
+app.delete('/api/products/:id', (req, res) => {
   loadDatabase();
   
   try {
@@ -358,66 +360,6 @@ app.delete('/api/products/:id', verifyAdmin, (req, res) => {
       details: error.message
     });
   }
-});
-
-// 🔐 PROTECTED: Reset all products (requires admin password)
-app.post('/api/reset', verifyAdmin, (req, res) => {
-  consumerProducts = {};
-  nextProductId = 1;
-  distributorToConsumerMap = {};
-  saveDatabase();
-  
-  console.log('🔄 DATABASE RESET! All products deleted, ID counter reset to 1');
-  
-  res.json({
-    success: true,
-    message: 'Database reset successfully - All products deleted',
-    nextProductId: 1
-  });
-});
-
-// Verify admin password endpoint
-app.post('/api/admin/verify', (req, res) => {
-  const { password } = req.body;
-  
-  if (password === ADMIN_PASSWORD) {
-    return res.json({ success: true, message: 'Admin authenticated' });
-  }
-  
-  res.status(401).json({ success: false, error: 'Invalid password' });
-});
-
-app.get('/api/qrcode/:id', (req, res) => {
-  loadDatabase();
-  const product = consumerProducts[req.params.id];
-  if (!product || !product.qrCode) {
-    return res.status(404).json({ error: 'QR code not found' });
-  }
-  res.json({ success: true, qrCode: product.qrCode });
-});
-
-app.get('/api/products/:id/verify', (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
-
-  if (!product) {
-    return res.status(404).json({ success: false, error: 'Product not found' });
-  }
-
-  const verification = verifyHashChain(product.journey);
-
-  res.json({
-    success: true,
-    productId,
-    productName: product.name,
-    verification,
-    journey: product.journey.map(block => ({
-      role: block.role,
-      hash: block.hash.substring(0, 16) + '...',
-      previousHash: block.previousHash.substring(0, 16) + '...'
-    }))
-  });
 });
 
 app.get('/product/:id', (req, res) => {
@@ -505,7 +447,7 @@ app.get('/health', (req, res) => {
     productsCount: Object.keys(consumerProducts).length,
     nextProductId: nextProductId,
     time: new Date().toISOString(),
-    features: ['Hash Chaining', 'Tamper Detection', 'Cryptographic Verification', 'Admin Auth', 'CORS Enabled']
+    features: ['Hash Chaining', 'Tamper Detection', 'Cryptographic Verification', 'CORS Enabled']
   });
 });
 
@@ -524,13 +466,31 @@ function analyzeProduct(product) {
   };
 }
 
-// ==================== FRONTEND SERVING ====================
+// ==================== FRONTEND SERVING (SAFE & CORRECT ORDER) ====================
 
+// Serve dashboard at root
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// Serve static files (including index.html for direct access if needed)
 app.use(express.static(__dirname));
+
+// Reset endpoint
+app.post('/api/reset', (req, res) => {
+  consumerProducts = {};
+  nextProductId = 1;
+  distributorToConsumerMap = {};
+  saveDatabase();
+  
+  console.log('🔄 Database reset! All products deleted, ID counter reset to 1');
+  
+  res.json({
+    success: true,
+    message: 'Database reset successfully',
+    nextProductId: 1
+  });
+});
 
 const PORT = process.env.PORT || 3000;
 
@@ -540,10 +500,9 @@ app.listen(PORT, () => {
 ║ 🚀 Consumer Backend running on ${PORT}      ║
 ║ 💾 Persistent DB enabled                  ║
 ║ 🔗 Blockchain Hash Chaining: ✅           ║
-║ 🔐 Admin Authentication: ✅               ║
-║ 🔑 Admin Password: ${ADMIN_PASSWORD.padEnd(25)}║
-║ 📊 Products: ${Object.keys(consumerProducts).length.toString().padEnd(28)}║
-║ 📊 Next Product ID: ${nextProductId.toString().padEnd(20)}║
+║ 🔐 Tamper Detection: ✅                   ║
+║ 🌐 CORS: ✅ (All origins)                 ║
+║ 📊 Next Product ID: ${nextProductId}       ║
 ╚═══════════════════════════════════════════╝
 `);
 });
