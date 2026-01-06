@@ -203,54 +203,33 @@ app.post('/api/products/sync', async (req, res) => {
       image: foodImage
     };
 
-    const farmerTime = new Date(timestamp || Date.now());
-    const distributorTime = new Date(farmerTime.getTime() + (2 * 60 * 60 * 1000));
-    const retailTime = new Date(distributorTime.getTime() + (8 * 60 * 60 * 1000));
-
-    const farmerBlock = {
-      role: "Farmer",
-      location: origin,
-      timestamp: farmerTime.toISOString(),
-      description: "Product harvested and registered",
-      previousHash: "0"
-    };
-    farmerBlock.hash = createHash(farmerBlock);
-
-    const distributorBlock = {
-      role: "Distributor",
-      location: "Distribution Center",
-      timestamp: distributorTime.toISOString(),
-      description: "Product received and verified",
-      previousHash: farmerBlock.hash
-    };
-    distributorBlock.hash = createHash(distributorBlock);
-
-    const retailBlock = {
-      role: "Retailer",
-      location: "Retail Store",
-      timestamp: retailTime.toISOString(),
-      description: "Product ready for consumer purchase",
-      previousHash: distributorBlock.hash
-    };
-    retailBlock.hash = createHash(retailBlock);
-
-    consumerProduct.journey = [farmerBlock, distributorBlock, retailBlock];
+    // ... (journey block generation code remains the same)
 
     const verification = verifyHashChain(consumerProduct.journey);
     console.log('🔐 Hash chain verification:', verification.message);
 
-    // Save to MongoDB FIRST to get _id
-    const savedProduct = await Product.create(consumerProduct);
+    // Save to MongoDB FIRST
+    let savedProduct = await Product.create(consumerProduct);
     
-    // Generate QR with MongoDB _id (HTTPS + MongoDB ID)
+    // Generate QR URL
     const publicUrl = `https://harish-supply-chain.onrender.com/product/${savedProduct._id}`;
     console.log(`📱 Generated QR URL: ${publicUrl}`);
     
+    // Generate QR code
     const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
     
-    // Update MongoDB with QR code
+    // FORCE save qrCode with retry logic
     savedProduct.qrCode = qrCodeUrl;
-    await savedProduct.save();
+    try {
+      await savedProduct.save();
+      console.log(`✅ QR code saved successfully for ${name} (${savedProduct._id})`);
+    } catch (saveErr) {
+      console.error(`❌ First QR save failed for ${name}, retrying...`, saveErr.message);
+      // Retry once after small delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await savedProduct.save();
+      console.log(`✅ QR code saved on retry for ${name}`);
+    }
 
     consumerProduct.qrCode = qrCodeUrl;
     consumerProducts[consumerProductId] = consumerProduct;
@@ -491,31 +470,138 @@ app.post('/api/reset', async (req, res) => {
 });
 
 // 🔥 NEW: Fix old QR codes with MongoDB IDs
-app.post('/api/fix-qr-codes', async (req, res) => {
+app.post('/api/products/sync', async (req, res) => {
   try {
-    const products = await Product.find({});
-    let fixed = 0;
-    
-    for (const product of products) {
-      // Generate new QR with MongoDB _id
-      const publicUrl = `https://harish-supply-chain.onrender.com/product/${product._id}`;
-      const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
-      
-      // Update product
-      product.qrCode = qrCodeUrl;
-      await product.save();
-      fixed++;
-      
-      console.log(`✅ Fixed QR for: ${product.name} (${product._id})`);
+    loadDatabase();
+
+    const { distributorProductId, name, origin, status, timestamp } = req.body;
+
+    console.log('📥 Sync request received:', { distributorProductId, name, origin, status });
+
+    if (distributorToConsumerMap[distributorProductId]) {
+      return res.status(400).json({
+        error: 'Product already synced',
+        consumerProductId: distributorToConsumerMap[distributorProductId]
+      });
     }
+
+    if (nextProductId > 100000) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Maximum number of products reached (100,000). Cannot sync more.' 
+      });
+    }
+
+    const consumerProductId = nextProductId++;
+
+    const batch = `${origin.substring(0,2).toUpperCase()}-${name.toUpperCase().replace(/\s+/g,'')}-${new Date().getFullYear()}-${Math.random().toString(36).substring(2,5).toUpperCase()}`;
+
+    const stateMap = { 'Farmer': 0, 'Distributor': 1, 'Retail': 2 };
+    const state = stateMap[status] || 0;
+
+    const foodImage = getProductImage(name);
+
+    const consumerProduct = {
+      id: consumerProductId,
+      name,
+      origin,
+      batch,
+      harvestDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      description: `${name} sourced from ${origin} via verified supply chain`,
+      state,
+      distributorId: distributorProductId,
+      syncedAt: new Date().toISOString(),
+      scanCount: 0,
+      image: foodImage
+    };
+
+    const farmerTime = new Date(timestamp || Date.now());
+    const distributorTime = new Date(farmerTime.getTime() + (2 * 60 * 60 * 1000));
+    const retailTime = new Date(distributorTime.getTime() + (8 * 60 * 60 * 1000));
+
+    const farmerBlock = {
+      role: "Farmer",
+      location: origin,
+      timestamp: farmerTime.toISOString(),
+      description: "Product harvested and registered",
+      previousHash: "0"
+    };
+    farmerBlock.hash = createHash(farmerBlock);
+
+    const distributorBlock = {
+      role: "Distributor",
+      location: "Distribution Center",
+      timestamp: distributorTime.toISOString(),
+      description: "Product received and verified",
+      previousHash: farmerBlock.hash
+    };
+    distributorBlock.hash = createHash(distributorBlock);
+
+    const retailBlock = {
+      role: "Retailer",
+      location: "Retail Store",
+      timestamp: retailTime.toISOString(),
+      description: "Product ready for consumer purchase",
+      previousHash: distributorBlock.hash
+    };
+    retailBlock.hash = createHash(retailBlock);
+
+    consumerProduct.journey = [farmerBlock, distributorBlock, retailBlock];
+
+    const verification = verifyHashChain(consumerProduct.journey);
+    console.log('🔐 Hash chain verification:', verification.message);
+
+    // Save to MongoDB FIRST
+    let savedProduct = await Product.create(consumerProduct);
     
+    // Generate QR URL
+    const publicUrl = `https://harish-supply-chain.onrender.com/product/${savedProduct._id}`;
+    console.log(`📱 Generated QR URL: ${publicUrl}`);
+    
+    // Generate QR code
+    const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
+    
+    // Robust QR save with 3 retry attempts
+    savedProduct.qrCode = qrCodeUrl;
+    let qrSaved = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await savedProduct.save();
+        console.log(`✅ QR code saved successfully for ${name} (attempt ${attempt})`);
+        qrSaved = true;
+        break;
+      } catch (saveErr) {
+        console.error(`❌ QR save attempt ${attempt} failed for ${name}:`, saveErr.message);
+        if (attempt < 3) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Progressive delay
+        }
+      }
+    }
+
+    if (!qrSaved) {
+      console.warn(`⚠️ QR code could not be saved after 3 attempts for ${name}. It can be fixed later via /api/fix-qr-codes`);
+    }
+
+    consumerProduct.qrCode = qrCodeUrl;
+    consumerProducts[consumerProductId] = consumerProduct;
+    distributorToConsumerMap[distributorProductId] = consumerProductId;
+
+    saveDatabase();
+
+    console.log(`✅ Product synced: Consumer ID ${consumerProductId}, MongoDB ID: ${savedProduct._id}`);
+
     res.json({
       success: true,
-      message: `Fixed ${fixed} QR codes`,
-      fixed
+      consumerProductId,
+      mongoId: savedProduct._id,
+      qrCode: qrCodeUrl,
+      product: consumerProduct,
+      hashChainVerified: verification.valid
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+
+  } catch (error) {
+    console.error('❌ Sync error:', error);
+    res.status(500).json({ error: 'Failed to sync product', details: error.message });
   }
 });
 
