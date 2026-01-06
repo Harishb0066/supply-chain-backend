@@ -10,7 +10,7 @@ const crypto = require('crypto');
 
 const app = express();
 
-// ✅ FIXED CORS CONFIGURATION - Must be before other middleware
+// ✅ FIXED CORS CONFIGURATION
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -25,7 +25,7 @@ const DB_FILE = path.join(__dirname, 'database.json');
 
 // In-memory database
 let consumerProducts = {};
-let nextProductId = 11;
+let nextProductId = 1; // 🔥 FIXED: Now starts from 1
 let distributorToConsumerMap = {};
 
 // 🔐 BLOCKCHAIN: Create cryptographic hash
@@ -39,7 +39,6 @@ function verifyHashChain(journey) {
     const currentBlock = journey[i];
     const previousBlock = journey[i - 1];
     
-    // Check if previousHash matches the actual previous block's hash
     if (currentBlock.previousHash !== previousBlock.hash) {
       return {
         valid: false,
@@ -48,7 +47,6 @@ function verifyHashChain(journey) {
       };
     }
     
-    // Verify current block's hash is correct
     const blockData = {
       role: currentBlock.role,
       location: currentBlock.location,
@@ -77,7 +75,7 @@ function loadDatabase() {
       const data = fs.readFileSync(DB_FILE, 'utf8');
       const parsed = JSON.parse(data);
       consumerProducts = parsed.consumerProducts || {};
-      nextProductId = parsed.nextProductId || 11;
+      nextProductId = parsed.nextProductId || 1;
       distributorToConsumerMap = parsed.distributorToConsumerMap || {};
       console.log(`✅ Database loaded: ${Object.keys(consumerProducts).length} products restored`);
     } catch (err) {
@@ -141,6 +139,13 @@ app.post('/api/products/sync', async (req, res) => {
       });
     }
 
+    // 🔥 MAX LIMIT: 1,000,000 products
+    if (nextProductId > 1000000) {
+      return res.status(400).json({
+        error: 'Maximum number of products reached (1,000,000)'
+      });
+    }
+
     const consumerProductId = nextProductId++;
 
     const batch = `${origin.substring(0,2).toUpperCase()}-${name.toUpperCase().replace(/\s+/g,'')}-${new Date().getFullYear()}-${Math.random().toString(36).substring(2,5).toUpperCase()}`;
@@ -166,52 +171,44 @@ app.post('/api/products/sync', async (req, res) => {
 
     // 🔐 BLOCKCHAIN: Create journey with cryptographic hash chaining
     const farmerTime = new Date(timestamp || Date.now());
-    const distributorTime = new Date(farmerTime.getTime() + (2 * 60 * 60 * 1000)); // +2 hours
-    const retailTime = new Date(distributorTime.getTime() + (8 * 60 * 60 * 1000)); // +8 hours
+    const distributorTime = new Date(farmerTime.getTime() + (2 * 60 * 60 * 1000));
+    const retailTime = new Date(distributorTime.getTime() + (8 * 60 * 60 * 1000));
 
-    // Block 1: Farmer (Genesis Block)
     const farmerBlock = {
       role: "Farmer",
       location: origin,
       timestamp: farmerTime.toISOString(),
       description: "Product harvested and registered",
-      previousHash: "0" // Genesis block
+      previousHash: "0"
     };
     farmerBlock.hash = createHash(farmerBlock);
 
-    // Block 2: Distributor (linked to Farmer)
     const distributorBlock = {
       role: "Distributor",
       location: "Distribution Center",
       timestamp: distributorTime.toISOString(),
       description: "Product received and verified",
-      previousHash: farmerBlock.hash // Linked to previous block
+      previousHash: farmerBlock.hash
     };
     distributorBlock.hash = createHash(distributorBlock);
 
-    // Block 3: Retailer (linked to Distributor)
     const retailBlock = {
       role: "Retailer",
       location: "Retail Store",
       timestamp: retailTime.toISOString(),
       description: "Product ready for consumer purchase",
-      previousHash: distributorBlock.hash // Linked to previous block
+      previousHash: distributorBlock.hash
     };
     retailBlock.hash = createHash(retailBlock);
 
     consumerProduct.journey = [farmerBlock, distributorBlock, retailBlock];
 
-    // 🔐 Verify hash chain immediately after creation
     const verification = verifyHashChain(consumerProduct.journey);
     console.log('🔐 Hash chain verification:', verification.message);
 
-    const qrData = JSON.stringify({
-      productId: consumerProductId,
-      type: 'consumer',
-      timestamp: Date.now()
-    });
-
-    const qrCodeUrl = await QRCode.toDataURL(qrData, { width: 300, margin: 2 });
+    // 🔥 FIXED: QR now points directly to product page URL
+    const publicUrl = `https://harish-supply-chain.onrender.com/product/${consumerProductId}`;
+    const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
     consumerProduct.qrCode = qrCodeUrl;
 
     consumerProducts[consumerProductId] = consumerProduct;
@@ -220,7 +217,6 @@ app.post('/api/products/sync', async (req, res) => {
     saveDatabase();
 
     console.log(`✅ Product synced: Consumer ID ${consumerProductId}`);
-    console.log(`🔗 Hash chain created with ${consumerProduct.journey.length} blocks`);
 
     res.json({
       success: true,
@@ -236,37 +232,6 @@ app.post('/api/products/sync', async (req, res) => {
   }
 });
 
-// QR Scan - Get product details with tamper detection
-app.get('/api/products/:id', (req, res) => {
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
-
-  if (!product) {
-    return res.status(404).json({ success: false, error: 'Product not found' });
-  }
-
-  product.scanCount++;
-  product.lastScanned = new Date().toISOString();
-
-  saveDatabase();
-
-  // 🔐 TAMPER DETECTION: Verify hash chain on every scan
-  const tamperCheck = verifyHashChain(product.journey);
-
-  const analysis = analyzeProduct(product);
-
-  console.log(`🔍 Product ${productId} scanned (Total scans: ${product.scanCount})`);
-  console.log(`🔐 Tamper check: ${tamperCheck.message}`);
-
-  res.json({
-    success: true,
-    product,
-    journey: product.journey,
-    analysis,
-    tamperDetection: tamperCheck // 🔥 NEW: Send tamper detection result
-  });
-});
-
 // Get all products
 app.get('/api/products', (req, res) => {
   res.json({
@@ -276,40 +241,7 @@ app.get('/api/products', (req, res) => {
   });
 });
 
-// QR Code fetch
-app.get('/api/qrcode/:id', (req, res) => {
-  const product = consumerProducts[req.params.id];
-  if (!product || !product.qrCode) {
-    return res.status(404).json({ error: 'QR code not found' });
-  }
-  res.json({ success: true, qrCode: product.qrCode });
-});
-
-// 🔐 Manual tamper check endpoint
-app.get('/api/products/:id/verify', (req, res) => {
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
-
-  if (!product) {
-    return res.status(404).json({ success: false, error: 'Product not found' });
-  }
-
-  const verification = verifyHashChain(product.journey);
-
-  res.json({
-    success: true,
-    productId,
-    productName: product.name,
-    verification,
-    journey: product.journey.map(block => ({
-      role: block.role,
-      hash: block.hash.substring(0, 16) + '...', // Show first 16 chars
-      previousHash: block.previousHash.substring(0, 16) + '...'
-    }))
-  });
-});
-
-// ✅ DELETE PRODUCT ENDPOINT - Fixed with proper JSON response
+// DELETE PRODUCT
 app.delete('/api/products/:id', (req, res) => {
   try {
     const productId = parseInt(req.params.id);
@@ -322,13 +254,10 @@ app.delete('/api/products/:id', (req, res) => {
       });
     }
 
-    // Store product name for logging
     const productName = product.name;
 
-    // Delete from consumerProducts
     delete consumerProducts[productId];
 
-    // Clean up distributorToConsumerMap
     for (const distId in distributorToConsumerMap) {
       if (distributorToConsumerMap[distId] === productId) {
         delete distributorToConsumerMap[distId];
@@ -340,7 +269,6 @@ app.delete('/api/products/:id', (req, res) => {
 
     console.log(`🗑️ Deleted product ID ${productId} (${productName})`);
 
-    // Return JSON response
     return res.status(200).json({ 
       success: true, 
       message: 'Product deleted successfully',
@@ -358,7 +286,7 @@ app.delete('/api/products/:id', (req, res) => {
   }
 });
 
-// Public HTML page for QR scanning (universal)
+// Public product page (QR scan lands here)
 app.get('/product/:id', (req, res) => {
   const productId = parseInt(req.params.id);
   const product = consumerProducts[productId];
@@ -373,6 +301,9 @@ app.get('/product/:id', (req, res) => {
       </html>
     `);
   }
+
+  product.scanCount++;
+  saveDatabase();
 
   const analysis = analyzeProduct(product);
   const tamperCheck = verifyHashChain(product.journey);
@@ -460,6 +391,12 @@ function analyzeProduct(product) {
     color: "green"
   };
 }
+
+// 🔥 CRITICAL: Serve your frontend (fixes "Cannot GET /")
+app.use(express.static(__dirname));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
