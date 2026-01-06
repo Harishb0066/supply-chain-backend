@@ -7,13 +7,16 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            background: #f5f7fa;
+            background: url('https://source.unsplash.com/1600x900/?food,supply-chain') no-repeat center center fixed;
+            background-size: cover;
             margin: 0;
             padding: 20px;
+            color: #333;
         }
         h1 {
             text-align: center;
-            color: #333;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
         #controls {
             text-align: center;
@@ -39,8 +42,9 @@
         #loading {
             text-align: center;
             font-size: 18px;
-            color: #666;
+            color: #fff;
             margin: 50px 0;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
         .product-grid {
             display: grid;
@@ -50,7 +54,7 @@
             margin: 0 auto;
         }
         .product-card {
-            background: white;
+            background: rgba(255, 255, 255, 0.9);
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
             padding: 20px;
@@ -133,13 +137,15 @@
             margin-bottom: 20px;
             border-radius: 8px;
             font-weight: 600;
+            color: #fff;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
         .status-connected {
-            background: #d4edda;
+            background: rgba(212, 237, 218, 0.8);
             color: #155724;
         }
         .status-disconnected {
-            background: #f8d7da;
+            background: rgba(248, 215, 218, 0.8);
             color: #721c24;
         }
 
@@ -191,6 +197,32 @@
         .btn-cancel:hover {
             background: #5a6268;
         }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .product-grid {
+                grid-template-columns: 1fr; /* Single column on small screens */
+            }
+            #search {
+                width: 80%;
+            }
+            .product-card {
+                padding: 15px;
+            }
+            .qr-container img {
+                width: 150px;
+                height: 150px;
+            }
+        }
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 1.5em;
+            }
+            .btn {
+                padding: 6px 12px;
+                font-size: 0.8em;
+            }
+        }
     </style>
 </head>
 <body>
@@ -226,6 +258,7 @@
     <script>
         const BASE_URL = "https://harish-supply-chain.onrender.com";
         const API_URL = `${BASE_URL}/api/products`;
+        const ADMIN_PASSWORD = "admin123"; // Change this to your secret password
 
         const productsContainer = document.getElementById("products");
         const loading = document.getElementById("loading");
@@ -278,8 +311,14 @@
 
         async function deleteProduct(product) {
             try {
+                const userPassword = prompt("Enter admin password to delete:");
+                if (userPassword !== ADMIN_PASSWORD) {
+                    alert('❌ Incorrect password. Delete cancelled.');
+                    return false;
+                }
+
                 const productId = product._id;
-                if (!productId) throw new Error('Product ID not found');
+                if (!productId || productId === 'undefined') throw new Error('Invalid product ID');
 
                 const response = await fetch(`${BASE_URL}/api/products/${productId}`, {
                     method: 'DELETE'
@@ -327,8 +366,8 @@
                 const productId = p._id;
                 const productUrl = `${BASE_URL}/product/${productId}`;
                 
-                // Fixed: Show short MongoDB ID or fallback
-                const displayId = p._id ? p._id.toString().substring(0, 8) + '...' : 'N/A';
+                // Fixed ID display: Use numeric id if available, else short _id
+                const displayId = p.id ? p.id : (p._id ? p._id.toString().substring(0, 8) + '...' : 'N/A');
 
                 card.innerHTML = `
                     <div class="product-title">${p.name} (ID: ${displayId})</div>
@@ -407,6 +446,7 @@
             const term = e.target.value.toLowerCase();
             const filtered = allProducts.filter(p =>
                 (p.name || '').toLowerCase().includes(term) ||
+                String(p.id || '').includes(term) ||
                 (p.batch || '').toLowerCase().includes(term) ||
                 (p._id || '').toLowerCase().includes(term)
             );
@@ -433,8 +473,8 @@
             if (e.target === deleteModal) hideDeleteModal();
         });
 
-        // FIXED: Auto-refresh every 5 minutes instead of 30 seconds
-        setInterval(loadProducts, 300000); // 5 minutes = 300000 ms
+        // Auto-refresh every 5 minutes
+        setInterval(loadProducts, 300000);
 
         // Initial load
         window.addEventListener('load', async () => {
