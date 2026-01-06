@@ -1,4 +1,5 @@
-// server.js - COMPLETE WORKING VERSION (Hash chain, QR retry, Admin delete protection, No CastError)
+// server.js - Consumer Backend with Admin Authentication
+// Run: node server.js
 
 const express = require('express');
 const QRCode = require('qrcode');
@@ -6,7 +7,6 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const mongoose = require('mongoose');
 
 const app = express();
 
@@ -19,20 +19,10 @@ app.use(cors({
 
 app.use(express.json());
 
-// MongoDB Connection
-mongoose.connect(
-  "mongodb+srv://Harish0204:Harish2005@cluster1.npllh70.mongodb.net/supplychain"
-).then(() => {
-  console.log("✅ MongoDB Connected");
-}).catch(err => {
-  console.error("❌ MongoDB Error:", err.message);
-});
-
-// MongoDB Schema
-const productSchema = new mongoose.Schema({}, { strict: false });
-const Product = mongoose.model("Product", productSchema);
-
 const DB_FILE = path.join(__dirname, 'database.json');
+
+// 🔐 ADMIN PASSWORD - Change this to something secure!
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
 let consumerProducts = {};
 let nextProductId = 1;
@@ -43,10 +33,6 @@ function createHash(data) {
 }
 
 function verifyHashChain(journey) {
-  if (!journey || !Array.isArray(journey) || journey.length === 0) {
-    return { valid: false, message: "Journey chain is missing or invalid" };
-  }
-
   for (let i = 1; i < journey.length; i++) {
     const currentBlock = journey[i];
     const previousBlock = journey[i - 1];
@@ -121,6 +107,20 @@ function saveDatabase() {
   }
 }
 
+// Middleware to verify admin password
+function verifyAdmin(req, res, next) {
+  const password = req.headers['x-admin-password'] || req.body.password;
+  
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Unauthorized - Invalid admin password' 
+    });
+  }
+  
+  next();
+}
+
 loadDatabase();
 
 console.log('🚀 Starting Consumer Backend...');
@@ -142,21 +142,6 @@ function getProductImage(productName) {
   else keywords = name + ' fresh natural';
 
   return `https://source.unsplash.com/800x600/?${encodeURIComponent(keywords + ' high quality real photo')}`;
-}
-
-function analyzeProduct(product) {
-  if (product.state !== 2) {
-    return {
-      status: "Suspicious",
-      message: "Product has not reached retail stage",
-      color: "orange"
-    };
-  }
-  return {
-    status: "Authentic",
-    message: "Product is safe and verified",
-    color: "green"
-  };
 }
 
 // ==================== API ROUTES ====================
@@ -206,7 +191,6 @@ app.post('/api/products/sync', async (req, res) => {
       image: foodImage
     };
 
-    // Journey block generation
     const farmerTime = new Date(timestamp || Date.now());
     const distributorTime = new Date(farmerTime.getTime() + (2 * 60 * 60 * 1000));
     const retailTime = new Date(distributorTime.getTime() + (8 * 60 * 60 * 1000));
@@ -243,46 +227,22 @@ app.post('/api/products/sync', async (req, res) => {
     const verification = verifyHashChain(consumerProduct.journey);
     console.log('🔐 Hash chain verification:', verification.message);
 
-    // Save to MongoDB
-    let savedProduct = await Product.create(consumerProduct);
-    
-    // Generate QR code
-    const publicUrl = `https://harish-supply-chain.onrender.com/product/${savedProduct._id}`;
-    console.log(`📱 Generated QR URL: ${publicUrl}`);
+    const publicUrl = `https://harish-supply-chain.onrender.com/product/${consumerProductId}`;
     
     const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
-    
-    // Save QR with retry
-    savedProduct.qrCode = qrCodeUrl;
-    let qrSaved = false;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        await savedProduct.save();
-        console.log(`✅ QR code saved for ${name} (attempt ${attempt})`);
-        qrSaved = true;
-        break;
-      } catch (saveErr) {
-        console.error(`❌ QR save attempt ${attempt} failed:`, saveErr.message);
-        if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * attempt));
-      }
-    }
-
-    if (!qrSaved) {
-      console.warn(`⚠️ QR not saved after 3 attempts for ${name}. Use /api/fix-qr-codes`);
-    }
-
     consumerProduct.qrCode = qrCodeUrl;
+
     consumerProducts[consumerProductId] = consumerProduct;
     distributorToConsumerMap[distributorProductId] = consumerProductId;
 
     saveDatabase();
 
-    console.log(`✅ Product synced: Consumer ID ${consumerProductId}, MongoDB ID: ${savedProduct._id}`);
+    console.log(`✅ Product synced: Consumer ID ${consumerProductId}`);
+    console.log(`📱 QR Code generated: ${qrCodeUrl.substring(0, 50)}...`);
 
     res.json({
       success: true,
       consumerProductId,
-      mongoId: savedProduct._id.toString(),
       qrCode: qrCodeUrl,
       product: consumerProduct,
       hashChainVerified: verification.valid
@@ -294,84 +254,100 @@ app.post('/api/products/sync', async (req, res) => {
   }
 });
 
-app.get('/api/products', async (req, res) => {
-  try {
-    const products = await Product.find({});
-    res.json({
-      success: true,
-      count: products.length,
-      products
+app.get('/api/products', (req, res) => {
+  loadDatabase();
+  
+  const productsArray = Object.values(consumerProducts);
+  
+  console.log(`📦 Returning ${productsArray.length} products`);
+  if (productsArray.length > 0) {
+    console.log('📋 Sample product:', {
+      id: productsArray[0].id,
+      name: productsArray[0].name,
+      hasQR: !!productsArray[0].qrCode,
+      qrLength: productsArray[0].qrCode?.length
     });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to load products' });
   }
+  
+  res.json({
+    success: true,
+    count: productsArray.length,
+    products: productsArray
+  });
 });
 
-app.get('/api/qrcode/:id', async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    if (!product || !product.qrCode) {
-      return res.status(404).json({ error: 'QR code not found' });
-    }
-    res.json({ success: true, qrCode: product.qrCode });
-  } catch (err) {
-    res.status(404).json({ error: 'QR code not found' });
+app.get('/api/products/:id', (req, res) => {
+  loadDatabase();
+  const productId = parseInt(req.params.id);
+  const product = consumerProducts[productId];
+
+  if (!product) {
+    return res.status(404).json({ success: false, error: 'Product not found' });
   }
+
+  product.scanCount++;
+  product.lastScanned = new Date().toISOString();
+
+  saveDatabase();
+
+  const tamperCheck = verifyHashChain(product.journey);
+  const analysis = analyzeProduct(product);
+
+  console.log(`🔍 Product ${productId} scanned (Total scans: ${product.scanCount})`);
+  console.log(`🔐 Tamper check: ${tamperCheck.message}`);
+
+  res.json({
+    success: true,
+    product,
+    journey: product.journey,
+    analysis,
+    tamperDetection: tamperCheck
+  });
 });
 
-app.get('/api/products/:id/verify', async (req, res) => {
+// 🔐 PROTECTED: Delete single product (requires admin password)
+app.delete('/api/products/:id', verifyAdmin, (req, res) => {
+  loadDatabase();
+  
   try {
-    const product = await Product.findById(req.params.id);
+    const productId = parseInt(req.params.id);
+    const product = consumerProducts[productId];
 
     if (!product) {
-      return res.status(404).json({ success: false, error: 'Product not found' });
-    }
-
-    const verification = verifyHashChain(product.journey);
-
-    res.json({
-      success: true,
-      productId: product._id.toString(),
-      productName: product.name,
-      verification,
-      journey: product.journey.map(block => ({
-        role: block.role,
-        hash: block.hash.substring(0, 16) + '...',
-        previousHash: block.previousHash.substring(0, 16) + '...'
-      }))
-    });
-  } catch (err) {
-    res.status(404).json({ success: false, error: 'Product not found' });
-  }
-});
-
-// DELETE ENDPOINT - SAFE FROM UNDEFINED ID
-app.delete('/api/products/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    if (!id || id === 'undefined' || id.length < 10) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid product ID' 
-      });
-    }
-
-    const deletedProduct = await Product.findByIdAndDelete(id);
-
-    if (!deletedProduct) {
       return res.status(404).json({ 
         success: false, 
         error: 'Product not found' 
       });
     }
 
-    console.log(`🗑️ Deleted product: ${deletedProduct.name} (MongoDB ID: ${id})`);
+    const productName = product.name;
+
+    delete consumerProducts[productId];
+
+    for (const distId in distributorToConsumerMap) {
+      if (distributorToConsumerMap[distId] === productId) {
+        delete distributorToConsumerMap[distId];
+        break;
+      }
+    }
+
+    const remainingIds = Object.keys(consumerProducts).map(id => parseInt(id));
+    if (remainingIds.length > 0) {
+      nextProductId = Math.max(...remainingIds) + 1;
+    } else {
+      nextProductId = 1;
+    }
+
+    saveDatabase();
+
+    console.log(`🗑️ Deleted product ID ${productId} (${productName})`);
+    console.log(`📊 Next Product ID reset to: ${nextProductId}`);
 
     return res.status(200).json({ 
       success: true, 
       message: 'Product deleted successfully',
-      deletedProductId: deletedProduct._id.toString(),
-      deletedProductName: deletedProduct.name
+      deletedProductId: productId,
+      deletedProductName: productName
     });
 
   } catch (error) {
@@ -384,148 +360,177 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
-// PRODUCT DISPLAY ROUTE
-app.get('/product/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    if (!id || id === 'undefined') {
-      return res.status(400).send("Invalid product ID");
-    }
-
-    const product = await Product.findById(id);
-
-    if (!product) {
-      return res.status(404).send(`
-        <html>
-          <body style="font-family: Arial; text-align: center; padding: 50px;">
-            <h2>Product Not Found</h2>
-            <p>This product may have been deleted or never existed.</p>
-          </body>
-        </html>
-      `);
-    }
-
-    const analysis = analyzeProduct(product);
-    const tamperCheck = verifyHashChain(product.journey);
-
-    let html = `
-      <html>
-        <head>
-          <title>${product.name} - Supply Chain Verification</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <style>
-            body { font-family: Arial, sans-serif; max-width: 800px; margin: auto; padding: 20px; background: #f9f9f9; }
-            h2 { color: #333; }
-            .status { font-weight: bold; font-size: 1.6em; margin-bottom: 10px; color: ${analysis.color}; }
-            img { max-width: 100%; border-radius: 10px; margin: 15px 0; }
-            ul { list-style: none; padding: 0; }
-            li { margin: 15px 0; padding-left: 15px; border-left: 4px solid #ccc; }
-          </style>
-        </head>
-        <body>
-          <h2 class="status">${analysis.status}</h2>
-          <h2>🛒 ${product.name}</h2>
-          <img src="${product.image}" alt="${product.name}" />
-          <p><b>Origin:</b> ${product.origin}</p>
-          <p><b>Batch ID:</b> ${product.batch}</p>
-          <p><b>Harvest Date:</b> ${product.harvestDate}</p>
-          <p><b>Current Stage:</b> ${product.state === 2 ? "🏪 Retail" : "⏳ In Transit"}</p>
-          <p>${analysis.message}</p>
-          <hr />
-          <h3>📜 Product Journey</h3>
-          <ul>
-    `;
-
-    product.journey.forEach(step => {
-      html += `
-        <li>
-          <b>${step.role}</b> – ${step.location}<br>
-          🕒 ${new Date(step.timestamp).toLocaleString()}
-        </li>
-      `;
-    });
-
-    html += `
-          </ul>
-          <p><b>Tamper Detection:</b> ${
-            tamperCheck.valid ? "✅ No tampering detected" : "❌ " + tamperCheck.message
-          }</p>
-          <p>🤖 AI-powered verification</p>
-        </body>
-      </html>
-    `;
-
-    res.send(html);
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Server Error");
-  }
-});
-
-app.get('/health', async (req, res) => {
-  const count = await Product.countDocuments();
-  res.json({
-    status: 'healthy',
-    productsCount: count,
-    nextProductId: nextProductId,
-    time: new Date().toISOString(),
-    features: ['Hash Chaining', 'Tamper Detection', 'MongoDB', 'CORS Enabled']
-  });
-});
-
-// FRONTEND SERVING
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-app.use(express.static(__dirname));
-
-app.post('/api/reset', async (req, res) => {
+// 🔐 PROTECTED: Reset all products (requires admin password)
+app.post('/api/reset', verifyAdmin, (req, res) => {
   consumerProducts = {};
   nextProductId = 1;
   distributorToConsumerMap = {};
   saveDatabase();
   
-  await Product.deleteMany({});
-  
-  console.log('🔄 Database reset! All products deleted, ID counter reset to 1');
+  console.log('🔄 DATABASE RESET! All products deleted, ID counter reset to 1');
   
   res.json({
     success: true,
-    message: 'Database reset successfully',
+    message: 'Database reset successfully - All products deleted',
     nextProductId: 1
   });
 });
 
-// Fix missing QR codes
-app.post('/api/fix-qr-codes', async (req, res) => {
-  try {
-    const products = await Product.find({});
-    let fixed = 0;
-    
-    for (const product of products) {
-      if (!product.qrCode) {
-        const publicUrl = `https://harish-supply-chain.onrender.com/product/${product._id}`;
-        const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
-        
-        product.qrCode = qrCodeUrl;
-        await product.save();
-        fixed++;
-        
-        console.log(`✅ Fixed QR for: ${product.name} (${product._id})`);
-      }
-    }
-    
-    res.json({
-      success: true,
-      message: `Fixed ${fixed} QR codes`,
-      fixed
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+// Verify admin password endpoint
+app.post('/api/admin/verify', (req, res) => {
+  const { password } = req.body;
+  
+  if (password === ADMIN_PASSWORD) {
+    return res.json({ success: true, message: 'Admin authenticated' });
   }
+  
+  res.status(401).json({ success: false, error: 'Invalid password' });
 });
+
+app.get('/api/qrcode/:id', (req, res) => {
+  loadDatabase();
+  const product = consumerProducts[req.params.id];
+  if (!product || !product.qrCode) {
+    return res.status(404).json({ error: 'QR code not found' });
+  }
+  res.json({ success: true, qrCode: product.qrCode });
+});
+
+app.get('/api/products/:id/verify', (req, res) => {
+  loadDatabase();
+  const productId = parseInt(req.params.id);
+  const product = consumerProducts[productId];
+
+  if (!product) {
+    return res.status(404).json({ success: false, error: 'Product not found' });
+  }
+
+  const verification = verifyHashChain(product.journey);
+
+  res.json({
+    success: true,
+    productId,
+    productName: product.name,
+    verification,
+    journey: product.journey.map(block => ({
+      role: block.role,
+      hash: block.hash.substring(0, 16) + '...',
+      previousHash: block.previousHash.substring(0, 16) + '...'
+    }))
+  });
+});
+
+app.get('/product/:id', (req, res) => {
+  loadDatabase();
+  const productId = parseInt(req.params.id);
+  const product = consumerProducts[productId];
+
+  if (!product) {
+    return res.status(404).send(`
+      <html>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2>Product Not Found</h2>
+          <p>Invalid Product ID: ${productId}</p>
+          <p style="color: #666;">This product may have been deleted or never existed.</p>
+        </body>
+      </html>
+    `);
+  }
+
+  const analysis = analyzeProduct(product);
+  const tamperCheck = verifyHashChain(product.journey);
+
+  let html = `
+    <html>
+      <head>
+        <title>${product.name} - Supply Chain Verification</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; background: #f9f9f9; }
+          h2 { color: #333; }
+          .status { font-weight: bold; font-size: 1.6em; margin-bottom: 10px; }
+          .suspicious { color: orange; }
+          .authentic { color: green; }
+          img { max-width: 100%; height: auto; border-radius: 10px; margin: 15px 0; }
+          ul { list-style: none; padding-left: 0; }
+          li { margin: 15px 0; padding-left: 15px; border-left: 4px solid #ccc; }
+          hr { border: none; border-top: 1px solid #eee; margin: 25px 0; }
+        </style>
+      </head>
+      <body>
+        <h2 class="status ${analysis.status.toLowerCase()}">${analysis.status}</h2>
+        <h2>🛒 ${product.name}</h2>
+
+        <img src="${product.image}" alt="${product.name}" />
+
+        <p><b>Origin:</b> ${product.origin}</p>
+        <p><b>Batch ID:</b> ${product.batch}</p>
+        <p><b>Harvest Date:</b> ${product.harvestDate}</p>
+        <p><b>Current Stage:</b> ${product.state === 2 ? "🏪 Retail" : "⏳ In Transit"}</p>
+        <p><b>Description:</b><br>${product.description}</p>
+        <p>${analysis.message}</p>
+        <p><b>Scanned:</b> ${new Date().toLocaleString()}</p>
+
+        <hr />
+
+        <h3>📜 Product Journey</h3>
+        <ul>
+  `;
+
+  product.journey.forEach(step => {
+    html += `
+      <li>
+        <b>${step.role}</b> – ${step.location}<br>
+        🕒 ${new Date(step.timestamp).toLocaleString()}
+      </li>
+    `;
+  });
+
+  html += `
+        </ul>
+
+        <p><b>Tamper Detection:</b> ${tamperCheck.valid ? "✅ No tampering detected" : "❌ " + tamperCheck.message}</p>
+        <p>🤖 AI-powered verification</p>
+      </body>
+    </html>
+  `;
+
+  res.send(html);
+});
+
+app.get('/health', (req, res) => {
+  loadDatabase();
+  res.json({
+    status: 'healthy',
+    productsCount: Object.keys(consumerProducts).length,
+    nextProductId: nextProductId,
+    time: new Date().toISOString(),
+    features: ['Hash Chaining', 'Tamper Detection', 'Cryptographic Verification', 'Admin Auth', 'CORS Enabled']
+  });
+});
+
+function analyzeProduct(product) {
+  if (product.state !== 2) {
+    return {
+      status: "Suspicious",
+      message: "Product has not reached retail stage",
+      color: "orange"
+    };
+  }
+  return {
+    status: "Authentic",
+    message: "Product is safe and verified",
+    color: "green"
+  };
+}
+
+// ==================== FRONTEND SERVING ====================
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.use(express.static(__dirname));
 
 const PORT = process.env.PORT || 3000;
 
@@ -533,11 +538,12 @@ app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════╗
 ║ 🚀 Consumer Backend running on ${PORT}      ║
-║ 💾 MongoDB enabled                        ║
+║ 💾 Persistent DB enabled                  ║
 ║ 🔗 Blockchain Hash Chaining: ✅           ║
-║ 🔐 Tamper Detection: ✅                   ║
-║ 🌐 CORS: ✅ (All origins)                 ║
-║ 📊 Next Product ID: ${nextProductId}       ║
+║ 🔐 Admin Authentication: ✅               ║
+║ 🔑 Admin Password: ${ADMIN_PASSWORD.padEnd(25)}║
+║ 📊 Products: ${Object.keys(consumerProducts).length.toString().padEnd(28)}║
+║ 📊 Next Product ID: ${nextProductId.toString().padEnd(20)}║
 ╚═══════════════════════════════════════════╝
 `);
 });
