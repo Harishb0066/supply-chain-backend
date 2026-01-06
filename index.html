@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All Products QR Codes - Admin Dashboard</title>
+    <title>All Products QR Codes</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -24,7 +24,7 @@
             width: 300px;
             font-size: 16px;
         }
-        .btn-primary {
+        #refresh {
             padding: 10px 20px;
             background: #4CAF50;
             color: white;
@@ -33,20 +33,8 @@
             cursor: pointer;
             margin-left: 10px;
         }
-        .btn-primary:hover {
+        #refresh:hover {
             background: #45a049;
-        }
-        .btn-danger {
-            padding: 10px 20px;
-            background: #dc3545;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-left: 10px;
-        }
-        .btn-danger:hover {
-            background: #c82333;
         }
         #loading {
             text-align: center;
@@ -130,10 +118,6 @@
         .btn-download:hover { background: #218838; }
         .btn-delete { background: #dc3545; color: white; }
         .btn-delete:hover { background: #c82333; }
-        .btn-confirm { background: #dc3545; color: white; }
-        .btn-confirm:hover { background: #c82333; }
-        .btn-cancel { background: #6c757d; color: white; }
-        .btn-cancel:hover { background: #5a6268; }
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -155,44 +139,6 @@
             color: #155724;
         }
         .status-disconnected {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .admin-panel {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            max-width: 500px;
-            margin: 20px auto;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .admin-panel h3 {
-            margin-top: 0;
-            color: #333;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        .form-group input {
-            width: 100%;
-            padding: 10px;
-            font-size: 16px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            box-sizing: border-box;
-        }
-        .admin-status {
-            text-align: center;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
-        .admin-authenticated {
-            background: #d4edda;
-            color: #155724;
-        }
-        .admin-locked {
             background: #f8d7da;
             color: #721c24;
         }
@@ -232,20 +178,7 @@
     </style>
 </head>
 <body>
-    <h1>📱 All Products QR Codes - Admin Dashboard</h1>
-
-    <!-- Admin Authentication Panel -->
-    <div class="admin-panel" id="adminPanel">
-        <h3>🔐 Admin Access Required</h3>
-        <div id="adminStatus" class="admin-status admin-locked">
-            🔒 Please authenticate to manage products
-        </div>
-        <div class="form-group">
-            <input type="password" id="adminPassword" placeholder="Enter admin password">
-        </div>
-        <button class="btn-primary" id="loginBtn">Login</button>
-        <button class="btn-danger" id="resetAllBtn" style="display:none;">🗑️ Delete ALL Products</button>
-    </div>
+    <h1>📱 All Products QR Codes</h1>
 
     <div id="connectionStatus" class="connection-status">
         ⏳ Checking connection...
@@ -253,7 +186,7 @@
 
     <div id="controls">
         <input type="text" id="search" placeholder="🔍 Search by name or ID...">
-        <button class="btn-primary" id="refresh">🔄 Refresh Now</button>
+        <button id="refresh">🔄 Refresh Now</button>
     </div>
 
     <div id="loading">Loading products...</div>
@@ -274,24 +207,8 @@
         </div>
     </div>
 
-    <!-- Reset All Confirmation Modal -->
-    <div id="resetModal" class="modal">
-        <div class="modal-content">
-            <h3>⚠️ DELETE ALL PRODUCTS?</h3>
-            <p style="color: #dc3545; font-weight: bold; font-size: 1.2em;">
-                This will permanently delete ALL products!
-            </p>
-            <p style="color: #666; font-size: 0.9em;">
-                This action cannot be undone. The product ID counter will reset to 1.
-            </p>
-            <div class="modal-buttons">
-                <button class="btn btn-confirm" id="confirmReset">Yes, Delete Everything</button>
-                <button class="btn btn-cancel" id="cancelReset">Cancel</button>
-            </div>
-        </div>
-    </div>
-
     <script>
+        // 🔧 FIXED: Always use your CURRENT Render backend
         const BASE_URL = "https://harish-supply-chain.onrender.com";
         const API_URL = `${BASE_URL}/api/products`;
 
@@ -302,25 +219,13 @@
         const refreshBtn = document.getElementById("refresh");
         const statusDiv = document.getElementById("connectionStatus");
 
-        const adminPanel = document.getElementById("adminPanel");
-        const adminStatus = document.getElementById("adminStatus");
-        const adminPassword = document.getElementById("adminPassword");
-        const loginBtn = document.getElementById("loginBtn");
-        const resetAllBtn = document.getElementById("resetAllBtn");
-
         const deleteModal = document.getElementById("deleteModal");
         const deleteMessage = document.getElementById("deleteMessage");
         const confirmDeleteBtn = document.getElementById("confirmDelete");
         const cancelDeleteBtn = document.getElementById("cancelDelete");
 
-        const resetModal = document.getElementById("resetModal");
-        const confirmResetBtn = document.getElementById("confirmReset");
-        const cancelResetBtn = document.getElementById("cancelReset");
-
         let allProducts = [];
         let productToDelete = null;
-        let isAdminAuthenticated = false;
-        let adminPasswordValue = '';
 
         async function checkConnection() {
             try {
@@ -338,91 +243,6 @@
             return false;
         }
 
-        // Admin authentication
-        loginBtn.addEventListener('click', async () => {
-            const password = adminPassword.value.trim();
-            
-            if (!password) {
-                alert('Please enter a password');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${BASE_URL}/api/admin/verify`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    isAdminAuthenticated = true;
-                    adminPasswordValue = password;
-                    adminStatus.className = 'admin-status admin-authenticated';
-                    adminStatus.textContent = '✅ Admin authenticated - Full access granted';
-                    resetAllBtn.style.display = 'inline-block';
-                    adminPassword.style.display = 'none';
-                    loginBtn.textContent = '🔓 Logged In';
-                    loginBtn.disabled = true;
-                    alert('✅ Admin access granted!');
-                    loadProducts();
-                } else {
-                    alert('❌ Invalid password');
-                }
-            } catch (err) {
-                alert('❌ Authentication error: ' + err.message);
-            }
-        });
-
-        // Reset all products
-        resetAllBtn.addEventListener('click', () => {
-            resetModal.style.display = 'flex';
-        });
-
-        confirmResetBtn.addEventListener('click', async () => {
-            if (!isAdminAuthenticated) {
-                alert('❌ Not authenticated');
-                return;
-            }
-
-            confirmResetBtn.disabled = true;
-            confirmResetBtn.textContent = 'Deleting...';
-
-            try {
-                const response = await fetch(`${BASE_URL}/api/reset`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Password': adminPasswordValue
-                    }
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    alert('✅ All products deleted! Database reset.');
-                    allProducts = [];
-                    renderProducts(allProducts);
-                    hideResetModal();
-                    await checkConnection();
-                } else {
-                    alert('❌ Reset failed: ' + data.error);
-                }
-            } catch (err) {
-                alert('❌ Error: ' + err.message);
-            } finally {
-                confirmResetBtn.disabled = false;
-                confirmResetBtn.textContent = 'Yes, Delete Everything';
-            }
-        });
-
-        cancelResetBtn.addEventListener('click', hideResetModal);
-
-        function hideResetModal() {
-            resetModal.style.display = 'none';
-        }
-
         function showError(message) {
             loading.style.display = "none";
             errorDiv.textContent = message;
@@ -430,13 +250,8 @@
         }
 
         function showDeleteModal(product) {
-            if (!isAdminAuthenticated) {
-                alert('🔒 Admin authentication required to delete products');
-                return;
-            }
             productToDelete = product;
-            const productId = product.id || product.productId || product.consumerProductId;
-            deleteMessage.textContent = `Are you sure you want to delete "${product.name}" (ID: ${productId})?`;
+            deleteMessage.textContent = `Are you sure you want to delete "${product.name}" (ID: ${product.id})?`;
             deleteModal.style.display = "flex";
         }
 
@@ -447,21 +262,8 @@
 
         async function deleteProduct(productId) {
             try {
-                if (!productId) {
-                    throw new Error('Invalid product ID');
-                }
-
-                if (!isAdminAuthenticated) {
-                    throw new Error('Not authenticated');
-                }
-                
-                console.log('Attempting to delete product:', productId);
-                
-                const response = await fetch(`${BASE_URL}/api/products/${productId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-Admin-Password': adminPasswordValue
-                    }
+                const response = await fetch(`${API_URL.replace('/products', '')}/products/${productId}`, {
+                    method: 'DELETE'
                 });
 
                 if (!response.ok) {
@@ -472,17 +274,11 @@
                 const data = await response.json();
                 if (!data.success) throw new Error(data.error || 'Delete failed');
 
-                allProducts = allProducts.filter(p => {
-                    const pId = p.id || p.productId || p.consumerProductId;
-                    return pId !== productId;
-                });
-                
+                allProducts = allProducts.filter(p => p.id !== productId);
                 renderProducts(allProducts);
                 alert('✅ Product deleted successfully!');
-                await checkConnection();
                 return true;
             } catch (err) {
-                console.error('Delete error:', err);
                 alert('❌ Error deleting: ' + err.message);
                 return false;
             }
@@ -493,7 +289,7 @@
             loading.style.display = "none";
 
             if (products.length === 0) {
-                productsContainer.innerHTML = "<p class='error' style='grid-column: 1 / -1; text-align:center;'>No products found. Sync products from the distributor system.</p>";
+                productsContainer.innerHTML = "<p class='error' style='grid-column: 1 / -1; text-align:center;'>No products found.</p>";
                 return;
             }
 
@@ -501,52 +297,44 @@
                 const card = document.createElement("div");
                 card.className = "product-card";
 
-                const productId = p.id || p.productId || p.consumerProductId;
-                const productUrl = `${BASE_URL}/product/${productId}`;
-
-                console.log('Rendering product:', { 
-                    name: p.name, 
-                    id: productId, 
-                    hasQR: !!p.qrCode,
-                    qrLength: p.qrCode?.length 
-                });
+                const productUrl = `${BASE_URL}/product/${p.id}`;
 
                 card.innerHTML = `
-                    <div class="product-title">${p.name || 'Unknown'} (ID: ${productId || 'N/A'})</div>
+                    <div class="product-title">${p.name} (ID: ${p.id})</div>
                     <div class="product-info">
-                        Batch: ${p.batch || 'N/A'}<br>
-                        Origin: ${p.origin || 'N/A'}<br>
-                        Harvest: ${p.harvestDate || 'N/A'}<br>
+                        Batch: ${p.batch}<br>
+                        Origin: ${p.origin}<br>
+                        Harvest: ${p.harvestDate}<br>
                         👁️ ${p.scanCount || 0} scans
                     </div>
                     <span class="status-badge ${p.state === 2 ? 'verified' : 'pending'}">
                         ${p.state === 2 ? '✓ Retail' : '⏳ In Transit'}
                     </span>
                     <div class="qr-container">
-                        <img src="${p.qrCode || 'https://via.placeholder.com/180?text=No+QR+Code'}" 
-                             alt="QR Code"
-                             onerror="this.src='https://via.placeholder.com/180?text=QR+Load+Failed'">
+                        <img src="${p.qrCode || 'https://via.placeholder.com/180?text=QR+Not+Available'}" 
+                             alt="QR Code">
                     </div>
                     <div class="actions">
                         <button class="btn btn-copy">📋 Copy Link</button>
                         <button class="btn btn-download">💾 Download QR</button>
-                        <button class="btn btn-delete" ${!isAdminAuthenticated ? 'style="opacity:0.5" title="Admin login required"' : ''}>🗑️ Delete</button>
+                        <button class="btn btn-delete">🗑️ Delete</button>
                     </div>
                 `;
 
+                // Attach event listeners
                 card.querySelector(".btn-copy").onclick = () => {
                     navigator.clipboard.writeText(productUrl);
-                    alert("✅ Link copied to clipboard!");
+                    alert("Link copied!");
                 };
 
                 card.querySelector(".btn-download").onclick = () => {
                     if (p.qrCode) {
                         const a = document.createElement("a");
                         a.href = p.qrCode;
-                        a.download = `QR_${p.name.replace(/\s+/g, '_')}_ID${productId}.png`;
+                        a.download = `QR_${p.name.replace(/\s+/g, '_')}_ID${p.id}.png`;
                         a.click();
                     } else {
-                        alert("❌ QR code not available");
+                        alert("QR not available");
                     }
                 };
 
@@ -566,17 +354,9 @@
                 const res = await fetch(API_URL, { signal: AbortSignal.timeout(30000) });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                
-                console.log('API Response:', data);
-                
                 if (!data.success) throw new Error(data.error || "Unknown error");
 
                 allProducts = data.products || [];
-                
-                if (allProducts.length > 0) {
-                    console.log('First product structure:', allProducts[0]);
-                }
-                
                 renderProducts(allProducts);
 
                 statusDiv.className = 'connection-status status-connected';
@@ -593,12 +373,11 @@
 
         searchInput.addEventListener("input", (e) => {
             const term = e.target.value.toLowerCase();
-            const filtered = allProducts.filter(p => {
-                const productId = p.id || p.productId || p.consumerProductId;
-                return p.name.toLowerCase().includes(term) ||
-                       String(productId).includes(term) ||
-                       (p.batch && p.batch.toLowerCase().includes(term));
-            });
+            const filtered = allProducts.filter(p =>
+                p.name.toLowerCase().includes(term) ||
+                String(p.id).includes(term) ||
+                p.batch.toLowerCase().includes(term)
+            );
             renderProducts(filtered);
         });
 
@@ -606,10 +385,9 @@
 
         confirmDeleteBtn.addEventListener("click", async () => {
             if (productToDelete) {
-                const productId = productToDelete.id || productToDelete.productId || productToDelete.consumerProductId;
                 confirmDeleteBtn.disabled = true;
                 confirmDeleteBtn.textContent = "Deleting...";
-                await deleteProduct(productId);
+                await deleteProduct(productToDelete.id);
                 confirmDeleteBtn.disabled = false;
                 confirmDeleteBtn.textContent = "Delete";
                 hideDeleteModal();
@@ -619,9 +397,6 @@
         cancelDeleteBtn.addEventListener("click", hideDeleteModal);
         deleteModal.addEventListener("click", (e) => {
             if (e.target === deleteModal) hideDeleteModal();
-        });
-        resetModal.addEventListener("click", (e) => {
-            if (e.target === resetModal) hideResetModal();
         });
 
         // Auto-refresh every 30 seconds
