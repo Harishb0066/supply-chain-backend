@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>All Products QR Codes</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -69,15 +70,12 @@
         .product-info {
             color: #7f8c8d;
             margin-bottom: 15px;
-            font-size: 0.9em;
         }
         .status-badge {
             padding: 5px 12px;
             border-radius: 20px;
             font-size: 0.9em;
             font-weight: bold;
-            display: inline-block;
-            margin-bottom: 10px;
         }
         .verified { background: #d4edda; color: #155724; }
         .pending { background: #fff3cd; color: #856404; }
@@ -85,32 +83,17 @@
             margin: 15px auto;
             width: 180px;
             height: 180px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .qr-container img {
-            width: 180px;
-            height: 180px;
-            border-radius: 8px;
         }
         .actions {
             margin-top: 10px;
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            flex-wrap: wrap;
         }
         .btn {
             padding: 8px 16px;
+            margin: 5px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             font-size: 0.9em;
-            font-weight: 500;
-            transition: all 0.2s;
         }
         .btn-copy { background: #007bff; color: white; }
         .btn-copy:hover { background: #0056b3; }
@@ -122,27 +105,8 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
-        .error { 
-            color: red; 
-            text-align: center; 
-            padding: 20px;
-        }
-        .connection-status {
-            text-align: center;
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            font-weight: 600;
-        }
-        .status-connected {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status-disconnected {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
+        .error { color: red; text-align: center; }
+        
         /* Modal styles */
         .modal {
             display: none;
@@ -153,17 +117,15 @@
             width: 100%;
             height: 100%;
             background-color: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
         }
         .modal-content {
             background-color: white;
+            margin: 15% auto;
             padding: 30px;
             border-radius: 10px;
             width: 90%;
             max-width: 400px;
             text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
         .modal-content h3 {
             margin-top: 0;
@@ -171,22 +133,37 @@
         }
         .modal-buttons {
             margin-top: 20px;
-            display: flex;
-            justify-content: center;
-            gap: 15px;
+        }
+        .modal-buttons button {
+            padding: 10px 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        .btn-confirm {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-confirm:hover {
+            background: #c82333;
+        }
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-cancel:hover {
+            background: #5a6268;
         }
     </style>
 </head>
 <body>
-    <h1>📱 All Products QR Codes</h1>
-
-    <div id="connectionStatus" class="connection-status">
-        ⏳ Checking connection...
-    </div>
+    <h1>All Products QR Codes</h1>
 
     <div id="controls">
-        <input type="text" id="search" placeholder="🔍 Search by name or ID...">
-        <button id="refresh">🔄 Refresh Now</button>
+        <input type="text" id="search" placeholder="Search by name or ID...">
+        <button id="refresh">Refresh Now</button>
     </div>
 
     <div id="loading">Loading products...</div>
@@ -201,24 +178,25 @@
             <p id="deleteMessage"></p>
             <p style="color: #666; font-size: 0.9em;">This action cannot be undone.</p>
             <div class="modal-buttons">
-                <button class="btn btn-confirm" id="confirmDelete">Delete</button>
-                <button class="btn btn-cancel" id="cancelDelete">Cancel</button>
+                <button class="btn-confirm" id="confirmDelete">Delete</button>
+                <button class="btn-cancel" id="cancelDelete">Cancel</button>
             </div>
         </div>
     </div>
 
     <script>
-        // 🔧 FIXED: Always use your CURRENT Render backend
-        const BASE_URL = "https://harish-supply-chain.onrender.com";
-        const API_URL = `${BASE_URL}/api/products`;
-
+        // Change this to your local server or deployed URL
+        // Auto-detect environment
+    const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? "http://127.0.0.1:3000/api/products"
+    : "https://supply-chain-qr.onrender.com/api/products";
+        // For production, use: "https://supply-chain-qr.onrender.com/api/products"
+        
         const productsContainer = document.getElementById("products");
         const loading = document.getElementById("loading");
         const errorDiv = document.getElementById("error");
         const searchInput = document.getElementById("search");
         const refreshBtn = document.getElementById("refresh");
-        const statusDiv = document.getElementById("connectionStatus");
-
         const deleteModal = document.getElementById("deleteModal");
         const deleteMessage = document.getElementById("deleteMessage");
         const confirmDeleteBtn = document.getElementById("confirmDelete");
@@ -226,22 +204,6 @@
 
         let allProducts = [];
         let productToDelete = null;
-
-        async function checkConnection() {
-            try {
-                const res = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(10000) });
-                const data = await res.json();
-                if (data.status === 'healthy') {
-                    statusDiv.className = 'connection-status status-connected';
-                    statusDiv.textContent = `✅ Connected (${data.productsCount} products)`;
-                    return true;
-                }
-            } catch (err) {
-                statusDiv.className = 'connection-status status-disconnected';
-                statusDiv.textContent = '⏱️ Backend waking up or disconnected';
-            }
-            return false;
-        }
 
         function showError(message) {
             loading.style.display = "none";
@@ -252,7 +214,7 @@
         function showDeleteModal(product) {
             productToDelete = product;
             deleteMessage.textContent = `Are you sure you want to delete "${product.name}" (ID: ${product.id})?`;
-            deleteModal.style.display = "flex";
+            deleteModal.style.display = "block";
         }
 
         function hideDeleteModal() {
@@ -262,24 +224,49 @@
 
         async function deleteProduct(productId) {
             try {
-                const response = await fetch(`${API_URL.replace('/products', '')}/products/${productId}`, {
-                    method: 'DELETE'
+                const response = await fetch(`${API_URL}/${productId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
                 });
 
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData.error || `HTTP ${response.status}`);
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server returned non-JSON response. Check CORS settings or backend URL.');
                 }
 
                 const data = await response.json();
-                if (!data.success) throw new Error(data.error || 'Delete failed');
 
+                if (!response.ok) {
+                    throw new Error(data.error || `Server error: ${response.status}`);
+                }
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to delete product');
+                }
+
+                console.log(`✅ Product ${productId} deleted successfully`);
+                
+                // Remove from local array
                 allProducts = allProducts.filter(p => p.id !== productId);
+                
+                // Re-render products
                 renderProducts(allProducts);
-                alert('✅ Product deleted successfully!');
+                
+                // Show success message
+                alert('Product deleted successfully!');
+                
                 return true;
             } catch (err) {
-                alert('❌ Error deleting: ' + err.message);
+                console.error('Delete error:', err);
+                console.error('Full error details:', {
+                    productId,
+                    url: `${API_URL}/${productId}`,
+                    error: err
+                });
+                alert('Error deleting product: ' + err.message);
                 return false;
             }
         }
@@ -289,124 +276,152 @@
             loading.style.display = "none";
 
             if (products.length === 0) {
-                productsContainer.innerHTML = "<p class='error' style='grid-column: 1 / -1; text-align:center;'>No products found.</p>";
+                productsContainer.innerHTML = "<p class='error'>No products found.</p>";
                 return;
             }
 
             products.forEach(p => {
                 const card = document.createElement("div");
                 card.className = "product-card";
+                card.dataset.productId = p.id;
 
-                const productUrl = `${BASE_URL}/product/${p.id}`;
+                const title = document.createElement("div");
+                title.className = "product-title";
+                title.textContent = `${p.name} (ID: ${p.id})`;
 
-                card.innerHTML = `
-                    <div class="product-title">${p.name} (ID: ${p.id})</div>
-                    <div class="product-info">
-                        Batch: ${p.batch}<br>
-                        Origin: ${p.origin}<br>
-                        Harvest: ${p.harvestDate}<br>
-                        👁️ ${p.scanCount || 0} scans
-                    </div>
-                    <span class="status-badge ${p.state === 2 ? 'verified' : 'pending'}">
-                        ${p.state === 2 ? '✓ Retail' : '⏳ In Transit'}
-                    </span>
-                    <div class="qr-container">
-                        <img src="${p.qrCode || 'https://via.placeholder.com/180?text=QR+Not+Available'}" 
-                             alt="QR Code">
-                    </div>
-                    <div class="actions">
-                        <button class="btn btn-copy">📋 Copy Link</button>
-                        <button class="btn btn-download">💾 Download QR</button>
-                        <button class="btn btn-delete">🗑️ Delete</button>
-                    </div>
+                const info = document.createElement("div");
+                info.className = "product-info";
+                info.innerHTML = `
+                    Batch: ${p.batch}<br>
+                    Origin: ${p.origin}<br>
+                    Harvest: ${p.harvestDate}<br>
+                    Stage: ${p.state === 2 ? "🏪 Retail" : "⏳ In Transit"}
                 `;
 
-                // Attach event listeners
-                card.querySelector(".btn-copy").onclick = () => {
-                    navigator.clipboard.writeText(productUrl);
+                const statusBadge = document.createElement("span");
+                statusBadge.className = "status-badge";
+                statusBadge.textContent = p.state === 2 ? "Retail" : "In Transit";
+                statusBadge.classList.add(p.state === 2 ? "verified" : "pending");
+
+                const qrContainer = document.createElement("div");
+                qrContainer.className = "qr-container";
+                qrContainer.id = `qr-${p.id}`;
+
+                const actions = document.createElement("div");
+                actions.className = "actions";
+
+                const copyBtn = document.createElement("button");
+                copyBtn.className = "btn btn-copy";
+                copyBtn.textContent = "Copy Link";
+                copyBtn.onclick = () => {
+                    navigator.clipboard.writeText(`https://supply-chain-qr.onrender.com/product/${p.id}`);
                     alert("Link copied!");
                 };
 
-                card.querySelector(".btn-download").onclick = () => {
-                    if (p.qrCode) {
+                const downloadBtn = document.createElement("button");
+                downloadBtn.className = "btn btn-download";
+                downloadBtn.textContent = "Download QR";
+                downloadBtn.onclick = () => {
+                    const qrDiv = document.getElementById(`qr-${p.id}`);
+                    const img = qrDiv.querySelector("img");
+                    if (img) {
                         const a = document.createElement("a");
-                        a.href = p.qrCode;
+                        a.href = img.src;
                         a.download = `QR_${p.name.replace(/\s+/g, '_')}_ID${p.id}.png`;
                         a.click();
-                    } else {
-                        alert("QR not available");
                     }
                 };
 
-                card.querySelector(".btn-delete").onclick = () => showDeleteModal(p);
+                const deleteBtn = document.createElement("button");
+                deleteBtn.className = "btn btn-delete";
+                deleteBtn.textContent = "Delete";
+                deleteBtn.onclick = () => showDeleteModal(p);
+
+                actions.appendChild(copyBtn);
+                actions.appendChild(downloadBtn);
+                actions.appendChild(deleteBtn);
+
+                card.appendChild(title);
+                card.appendChild(info);
+                card.appendChild(statusBadge);
+                card.appendChild(qrContainer);
+                card.appendChild(actions);
 
                 productsContainer.appendChild(card);
+
+                // Generate QR
+                new QRCode(qrContainer, {
+                    text: `https://supply-chain-qr.onrender.com/product/${p.id}`,
+                    width: 180,
+                    height: 180,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.H
+                });
             });
         }
 
-        async function loadProducts() {
+        function loadProducts() {
             loading.style.display = "block";
             errorDiv.style.display = "none";
-            refreshBtn.disabled = true;
-            refreshBtn.textContent = "⏳ Loading...";
 
-            try {
-                const res = await fetch(API_URL, { signal: AbortSignal.timeout(30000) });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error || "Unknown error");
-
-                allProducts = data.products || [];
-                renderProducts(allProducts);
-
-                statusDiv.className = 'connection-status status-connected';
-                statusDiv.textContent = `✅ Loaded ${allProducts.length} products`;
-            } catch (err) {
-                showError("Error: " + (err.message || "Failed to load"));
-                statusDiv.className = 'connection-status status-disconnected';
-                statusDiv.textContent = '❌ Failed to load products';
-            } finally {
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = "🔄 Refresh Now";
-            }
+            fetch(API_URL)
+                .then(res => {
+                    if (!res.ok) throw new Error("Failed to load products");
+                    return res.json();
+                })
+                .then(data => {
+                    if (!data.success) throw new Error(data.error || "Unknown error");
+                    allProducts = data.products || [];
+                    renderProducts(allProducts);
+                })
+                .catch(err => {
+                    showError("Error loading products: " + err.message);
+                });
         }
 
+        // Search filter
         searchInput.addEventListener("input", (e) => {
             const term = e.target.value.toLowerCase();
             const filtered = allProducts.filter(p =>
-                p.name.toLowerCase().includes(term) ||
-                String(p.id).includes(term) ||
-                p.batch.toLowerCase().includes(term)
+                p.name.toLowerCase().includes(term) || 
+                String(p.id).includes(term)
             );
             renderProducts(filtered);
         });
 
+        // Refresh button
         refreshBtn.addEventListener("click", loadProducts);
 
+        // Modal event listeners
         confirmDeleteBtn.addEventListener("click", async () => {
             if (productToDelete) {
                 confirmDeleteBtn.disabled = true;
                 confirmDeleteBtn.textContent = "Deleting...";
-                await deleteProduct(productToDelete.id);
+                
+                const success = await deleteProduct(productToDelete.id);
+                
                 confirmDeleteBtn.disabled = false;
                 confirmDeleteBtn.textContent = "Delete";
+                
                 hideDeleteModal();
             }
         });
 
         cancelDeleteBtn.addEventListener("click", hideDeleteModal);
+
+        // Close modal when clicking outside
         deleteModal.addEventListener("click", (e) => {
-            if (e.target === deleteModal) hideDeleteModal();
+            if (e.target === deleteModal) {
+                hideDeleteModal();
+            }
         });
 
         // Auto-refresh every 30 seconds
         setInterval(loadProducts, 30000);
 
         // Initial load
-        window.addEventListener('load', async () => {
-            await checkConnection();
-            loadProducts();
-        });
+        loadProducts();
     </script>
 </body>
 </html>
