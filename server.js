@@ -255,12 +255,23 @@ app.post('/api/products/sync', async (req, res) => {
 });
 
 app.get('/api/products', async (req, res) => {
-  // 🔹 ADDED FOR MONGODB READ
   const products = await Product.find({});
+
+  const fixedProducts = products.map(p => {
+    const obj = p.toObject();
+
+    // 🔹 FIX: If id is missing, derive it safely
+    if (obj.id === undefined && obj._id) {
+      obj.id = obj.id || obj.consumerProductId || obj._id.toString();
+    }
+
+    return obj;
+  });
+
   res.json({
     success: true,
-    count: products.length,
-    products
+    count: fixedProducts.length,
+    products: fixedProducts
   });
 });
 
@@ -295,6 +306,24 @@ app.get('/api/products/:id', async (req, res) => {
     tamperDetection: tamperCheck
   });
 });
+
+const axios = require('axios');
+
+async function downloadImage(url, filename) {
+  const filePath = path.join(__dirname, 'product-images', filename);
+  const response = await axios({
+    url,
+    method: 'GET',
+    responseType: 'stream'
+  });
+
+  return new Promise((resolve, reject) => {
+    const writer = fs.createWriteStream(filePath);
+    response.data.pipe(writer);
+    writer.on('finish', resolve);
+    writer.on('error', reject);
+  });
+}
 
 app.get('/api/qrcode/:id', (req, res) => {
   loadDatabase();
