@@ -4,7 +4,6 @@
 const express = require('express');
 const QRCode = require('qrcode');
 const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const mongoose = require('mongoose'); // 🔹 ADDED FOR MONGODB
@@ -14,7 +13,7 @@ const app = express();
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Password'],
     credentials: true
 }));
 
@@ -33,12 +32,6 @@ mongoose.connect(
 // 🔹 ADDED FOR MONGODB SCHEMA
 const productSchema = new mongoose.Schema({}, { strict: false });
 const Product = mongoose.model("Product", productSchema);
-
-const DB_FILE = path.join(__dirname, 'database.json');
-
-let consumerProducts = {};
-let nextProductId = 1;
-let distributorToConsumerMap = {};
 
 function createHash(data) {
   return crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
@@ -78,49 +71,6 @@ function verifyHashChain(journey) {
   return { valid: true, message: "Hash chain verified - No tampering detected" };
 }
 
-function loadDatabase() {
-  if (fs.existsSync(DB_FILE)) {
-    try {
-      const data = fs.readFileSync(DB_FILE, 'utf8');
-      const parsed = JSON.parse(data);
-      consumerProducts = parsed.consumerProducts || {};
-      nextProductId = parsed.nextProductId || 1;
-      distributorToConsumerMap = parsed.distributorToConsumerMap || {};
-      
-      const existingIds = Object.keys(consumerProducts).map(id => parseInt(id));
-      if (existingIds.length > 0) {
-        nextProductId = Math.max(...existingIds) + 1;
-      }
-      
-      console.log(`✅ Database loaded: ${Object.keys(consumerProducts).length} products restored`);
-      console.log(`📊 Next Product ID will be: ${nextProductId}`);
-    } catch (err) {
-      console.error('❌ Failed to load database, starting fresh');
-      consumerProducts = {};
-      nextProductId = 1;
-      distributorToConsumerMap = {};
-    }
-  } else {
-    console.log('📄 No database file found, starting fresh');
-  }
-}
-
-function saveDatabase() {
-  const data = {
-    consumerProducts,
-    nextProductId,
-    distributorToConsumerMap
-  };
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-    console.log(`💾 Database saved: ${Object.keys(consumerProducts).length} products, Next ID: ${nextProductId}`);
-  } catch (err) {
-    console.error('❌ Failed to save database:', err);
-  }
-}
-
-loadDatabase();
-
 console.log('🚀 Starting Consumer Backend...');
 
 function getProductImage(productName) {
@@ -146,27 +96,30 @@ function getProductImage(productName) {
 
 app.post('/api/products/sync', async (req, res) => {
   try {
-    loadDatabase();
-
     const { distributorProductId, name, origin, status, timestamp } = req.body;
 
     console.log('📥 Sync request received:', { distributorProductId, name, origin, status });
 
-    if (distributorToConsumerMap[distributorProductId]) {
+    const existing = await Product.findOne({ distributorId: distributorProductId });
+
+    if (existing) {
       return res.status(400).json({
         error: 'Product already synced',
-        consumerProductId: distributorToConsumerMap[distributorProductId]
+        consumerProductId: existing.id
       });
     }
 
-    if (nextProductId > 100000) {
+    const maxProduct = await Product.findOne({}, 'id').sort({ id: -1 });
+    const maxId = maxProduct ? maxProduct.id : 0;
+
+    if (maxId >= 100000) {
       return res.status(400).json({ 
         success: false,
         error: 'Maximum number of products reached (100,000). Cannot sync more.' 
       });
     }
 
-    const consumerProductId = nextProductId++;
+    const consumerProductId = maxId + 1;
 
     const batch = `${origin.substring(0,2).toUpperCase()}-${name.toUpperCase().replace(/\s+/g,'')}-${new Date().getFullYear()}-${Math.random().toString(36).substring(2,5).toUpperCase()}`;
 
@@ -230,13 +183,7 @@ app.post('/api/products/sync', async (req, res) => {
     const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
     consumerProduct.qrCode = qrCodeUrl;
 
-    consumerProducts[consumerProductId] = consumerProduct;
-    distributorToConsumerMap[distributorProductId] = consumerProductId;
-
-    saveDatabase();
-
-    // 🔹 ADDED FOR MONGODB SAVE
-    await Product.create(consumerProduct);
+    const newProduct = await Product.create(consumerProduct);
 
     console.log(`✅ Product synced: Consumer ID ${consumerProductId}`);
 
@@ -244,7 +191,7 @@ app.post('/api/products/sync', async (req, res) => {
       success: true,
       consumerProductId,
       qrCode: qrCodeUrl,
-      product: consumerProduct,
+      product: newProduct,
       hashChainVerified: verification.valid
     });
 
@@ -257,46 +204,28 @@ app.post('/api/products/sync', async (req, res) => {
 app.get('/api/products', async (req, res) => {
   const products = await Product.find({});
 
-  const fixedProducts = products.map(p => {
-    const obj = p.toObject();
-
-    // 🔹 FIX: If id is missing, derive it safely
-    if (obj.id === undefined && obj._id) {
-      obj.id = obj.id || obj.consumerProductId || obj._id.toString();
-    }
-
-    return obj;
-  });
-
   res.json({
     success: true,
-    count: fixedProducts.length,
-    products: fixedProducts
+    count: products.length,
+    products: products.map(p => p.toObject())
   });
 });
 
 app.get('/api/products/:id', async (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  let product = consumerProducts[productId];
+  const productId = Number(req.params.id);
 
-// 🔹 FALLBACK TO MONGODB (Render-safe)
-if (!product) {
-  product = await Product.findOne({ id: productId });
-}
+  const productDoc = await Product.findOne({ id: productId });
 
-
-  if (!product) {
+  if (!productDoc) {
     return res.status(404).json({ success: false, error: 'Product not found' });
   }
 
-  product.scanCount++;
+  const product = productDoc.toObject();
+
+  product.scanCount = (product.scanCount || 0) + 1;
   product.lastScanned = new Date().toISOString();
 
-  saveDatabase();
-
-  // 🔹 ADDED FOR MONGODB UPDATE
-  await Product.updateOne({ id: productId }, { $set: { scanCount: product.scanCount, lastScanned: product.lastScanned } });
+  await Product.updateOne({ id: productId }, { scanCount: product.scanCount, lastScanned: product.lastScanned });
 
   const tamperCheck = verifyHashChain(product.journey);
   const analysis = analyzeProduct(product);
@@ -313,35 +242,27 @@ if (!product) {
   });
 });
 
+app.get('/api/qrcode/:id', async (req, res) => {
+  const productId = Number(req.params.id);
 
+  const productDoc = await Product.findOne({ id: productId }, 'qrCode');
 
-async function downloadImage(url, filename) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch image');
-
-  const filePath = path.join(__dirname, 'product-images', filename);
-  const buffer = Buffer.from(await res.arrayBuffer());
-  fs.writeFileSync(filePath, buffer);
-}
-
-
-app.get('/api/qrcode/:id', (req, res) => {
-  loadDatabase();
-  const product = consumerProducts[req.params.id];
-  if (!product || !product.qrCode) {
+  if (!productDoc || !productDoc.qrCode) {
     return res.status(404).json({ error: 'QR code not found' });
   }
-  res.json({ success: true, qrCode: product.qrCode });
+  res.json({ success: true, qrCode: productDoc.qrCode });
 });
 
-app.get('/api/products/:id/verify', (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
+app.get('/api/products/:id/verify', async (req, res) => {
+  const productId = Number(req.params.id);
 
-  if (!product) {
+  const productDoc = await Product.findOne({ id: productId });
+
+  if (!productDoc) {
     return res.status(404).json({ success: false, error: 'Product not found' });
   }
+
+  const product = productDoc.toObject();
 
   const verification = verifyHashChain(product.journey);
 
@@ -359,44 +280,32 @@ app.get('/api/products/:id/verify', (req, res) => {
 });
 
 app.delete('/api/products/:id', async (req, res) => {
-  loadDatabase();
-  
   try {
-    const productId = parseInt(req.params.id);
-    const product = consumerProducts[productId];
+    const productId = Number(req.params.id);
+    const adminPassword = req.headers['x-admin-password'];
 
-    if (!product) {
+    if (!adminPassword || adminPassword !== 'admin123') {  // Hardcoded for simplicity; change in production
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid admin password' 
+      });
+    }
+
+    const productDoc = await Product.findOne({ id: productId });
+
+    if (!productDoc) {
       return res.status(404).json({ 
         success: false, 
         error: 'Product not found' 
       });
     }
 
+    const product = productDoc.toObject();
     const productName = product.name;
 
-    delete consumerProducts[productId];
-
-    for (const distId in distributorToConsumerMap) {
-      if (distributorToConsumerMap[distId] === productId) {
-        delete distributorToConsumerMap[distId];
-        break;
-      }
-    }
-
-    const remainingIds = Object.keys(consumerProducts).map(id => parseInt(id));
-    if (remainingIds.length > 0) {
-      nextProductId = Math.max(...remainingIds) + 1;
-    } else {
-      nextProductId = 1;
-    }
-
-    saveDatabase();
-
-    // 🔹 ADDED FOR MONGODB DELETE
     await Product.deleteOne({ id: productId });
 
     console.log(`🗑️ Deleted product ID ${productId} (${productName})`);
-    console.log(`📊 Next Product ID reset to: ${nextProductId}`);
 
     return res.status(200).json({ 
       success: true, 
@@ -418,14 +327,20 @@ app.delete('/api/products/:id', async (req, res) => {
 app.get('/product/:id', async (req, res) => {
   const productId = Number(req.params.id);
 
-  const product = await Product.findOne({ id: productId });
+  const productDoc = await Product.findOne({ id: productId });
 
-  if (!product) {
+  if (!productDoc) {
     return res.status(404).send(`
       <h2>Product Not Found</h2>
       <p>Invalid Product ID: ${productId}</p>
     `);
   }
+
+  const product = productDoc.toObject();
+
+  product.scanCount = (product.scanCount || 0) + 1;
+  product.lastScanned = new Date().toISOString();
+  await Product.updateOne({ id: productId }, { scanCount: product.scanCount, lastScanned: product.lastScanned });
 
   const analysis = analyzeProduct(product);
   const tamperCheck = verifyHashChain(product.journey);
@@ -452,45 +367,12 @@ app.get('/product/:id', async (req, res) => {
     </html>
   `);
 });
-app.get('/api/products/:id', async (req, res) => {
-  const productId = Number(req.params.id);
 
-  const product = await Product.findOne({ id: productId });
-
-  if (!product) {
-    return res.status(404).json({ success: false, error: "Product not found" });
-  }
-
-  product.scanCount = (product.scanCount || 0) + 1;
-  product.lastScanned = new Date().toISOString();
-  await product.save();
-
-  res.json({
-    success: true,
-    product,
-    analysis: analyzeProduct(product),
-    tamperDetection: verifyHashChain(product.journey)
-  });
-});
-function viewProduct(id) {
-  fetch(`/api/products/${Number(id)}`)
-    .then(res => res.json())
-    .then(data => {
-      if (!data.success) {
-        alert("Product not found");
-        return;
-      }
-      window.open(`/product/${data.product.id}`, "_blank");
-    });
-}
-
-
-app.get('/health', (req, res) => {
-  loadDatabase();
+app.get('/health', async (req, res) => {
+  const count = await Product.countDocuments();
   res.json({
     status: 'healthy',
-    productsCount: Object.keys(consumerProducts).length,
-    nextProductId: nextProductId,
+    productsCount: count,
     time: new Date().toISOString(),
     features: ['Hash Chaining', 'Tamper Detection', 'Cryptographic Verification', 'CORS Enabled']
   });
@@ -523,20 +405,13 @@ app.use(express.static(__dirname));
 
 // Reset endpoint
 app.post('/api/reset', async (req, res) => {
-  consumerProducts = {};
-  nextProductId = 1;
-  distributorToConsumerMap = {};
-  saveDatabase();
-  
-  // 🔹 ADDED FOR MONGODB RESET
   await Product.deleteMany({});
   
-  console.log('🔄 Database reset! All products deleted, ID counter reset to 1');
+  console.log('🔄 Database reset! All products deleted');
   
   res.json({
     success: true,
-    message: 'Database reset successfully',
-    nextProductId: 1
+    message: 'Database reset successfully'
   });
 });
 
@@ -546,11 +421,9 @@ app.listen(PORT, () => {
   console.log(`
 ╔═══════════════════════════════════════════╗
 ║ 🚀 Consumer Backend running on ${PORT}      ║
-║ 💾 Persistent DB enabled                  ║
 ║ 🔗 Blockchain Hash Chaining: ✅           ║
 ║ 🔐 Tamper Detection: ✅                   ║
 ║ 🌐 CORS: ✅ (All origins)                 ║
-║ 📊 Next Product ID: ${nextProductId}       ║
 ╚═══════════════════════════════════════════╝
 `);
 });
