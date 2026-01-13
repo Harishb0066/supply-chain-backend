@@ -415,83 +415,75 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
-app.get('/product/:id', (req, res) => {
-  loadDatabase();
-  const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
+app.get('/product/:id', async (req, res) => {
+  const productId = Number(req.params.id);
+
+  const product = await Product.findOne({ id: productId });
 
   if (!product) {
     return res.status(404).send(`
-      <html>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2>Product Not Found</h2>
-          <p>Invalid Product ID: ${productId}</p>
-          <p style="color: #666;">This product may have been deleted or never existed.</p>
-        </body>
-      </html>
+      <h2>Product Not Found</h2>
+      <p>Invalid Product ID: ${productId}</p>
     `);
   }
 
   const analysis = analyzeProduct(product);
   const tamperCheck = verifyHashChain(product.journey);
 
-  let html = `
+  res.send(`
     <html>
-      <head>
-        <title>${product.name} - Supply Chain Verification</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-          body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; background: #f9f9f9; }
-          h2 { color: #333; }
-          .status { font-weight: bold; font-size: 1.6em; margin-bottom: 10px; }
-          .suspicious { color: orange; }
-          .authentic { color: green; }
-          img { max-width: 100%; height: auto; border-radius: 10px; margin: 15px 0; }
-          ul { list-style: none; padding-left: 0; }
-          li { margin: 15px 0; padding-left: 15px; border-left: 4px solid #ccc; }
-          hr { border: none; border-top: 1px solid #eee; margin: 25px 0; }
-        </style>
-      </head>
-      <body>
-        <h2 class="status ${analysis.status.toLowerCase()}">${analysis.status}</h2>
-        <h2>🛒 ${product.name}</h2>
-
-        <img src="${product.image}" alt="${product.name}" />
-
+      <head><title>${product.name}</title></head>
+      <body style="font-family:Arial">
+        <h2>${analysis.status}</h2>
+        <h3>${product.name}</h3>
+        <img src="${product.image}" width="300"/>
         <p><b>Origin:</b> ${product.origin}</p>
-        <p><b>Batch ID:</b> ${product.batch}</p>
-        <p><b>Harvest Date:</b> ${product.harvestDate}</p>
-        <p><b>Current Stage:</b> ${product.state === 2 ? "🏪 Retail" : "⏳ In Transit"}</p>
-        <p><b>Description:</b><br>${product.description}</p>
+        <p><b>Batch:</b> ${product.batch}</p>
         <p>${analysis.message}</p>
-        <p><b>Scanned:</b> ${new Date().toLocaleString()}</p>
-
-        <hr />
-
-        <h3>📜 Product Journey</h3>
+        <hr/>
+        <h4>Journey</h4>
         <ul>
-  `;
-
-  product.journey.forEach(step => {
-    html += `
-      <li>
-        <b>${step.role}</b> – ${step.location}<br>
-        🕒 ${new Date(step.timestamp).toLocaleString()}
-      </li>
-    `;
-  });
-
-  html += `
+          ${product.journey.map(j => `
+            <li>${j.role} - ${j.location}</li>
+          `).join('')}
         </ul>
-
-        <p><b>Tamper Detection:</b> ${tamperCheck.valid ? "✅ No tampering detected" : "❌ " + tamperCheck.message}</p>
-        <p>🤖 AI-powered verification</p>
+        <p>${tamperCheck.valid ? "✅ Authentic" : "❌ Tampered"}</p>
       </body>
     </html>
-  `;
-
-  res.send(html);
+  `);
 });
+app.get('/api/products/:id', async (req, res) => {
+  const productId = Number(req.params.id);
+
+  const product = await Product.findOne({ id: productId });
+
+  if (!product) {
+    return res.status(404).json({ success: false, error: "Product not found" });
+  }
+
+  product.scanCount = (product.scanCount || 0) + 1;
+  product.lastScanned = new Date().toISOString();
+  await product.save();
+
+  res.json({
+    success: true,
+    product,
+    analysis: analyzeProduct(product),
+    tamperDetection: verifyHashChain(product.journey)
+  });
+});
+function viewProduct(id) {
+  fetch(`/api/products/${Number(id)}`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success) {
+        alert("Product not found");
+        return;
+      }
+      window.open(`/product/${data.product.id}`, "_blank");
+    });
+}
+
 
 app.get('/health', (req, res) => {
   loadDatabase();
