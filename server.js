@@ -307,23 +307,17 @@ app.get('/api/products/:id', async (req, res) => {
   });
 });
 
-const axios = require('axios');
+
 
 async function downloadImage(url, filename) {
-  const filePath = path.join(__dirname, 'product-images', filename);
-  const response = await axios({
-    url,
-    method: 'GET',
-    responseType: 'stream'
-  });
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch image');
 
-  return new Promise((resolve, reject) => {
-    const writer = fs.createWriteStream(filePath);
-    response.data.pipe(writer);
-    writer.on('finish', resolve);
-    writer.on('error', reject);
-  });
+  const filePath = path.join(__dirname, 'product-images', filename);
+  const buffer = Buffer.from(await res.arrayBuffer());
+  fs.writeFileSync(filePath, buffer);
 }
+
 
 app.get('/api/qrcode/:id', (req, res) => {
   loadDatabase();
