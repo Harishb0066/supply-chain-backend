@@ -278,7 +278,13 @@ app.get('/api/products', async (req, res) => {
 app.get('/api/products/:id', async (req, res) => {
   loadDatabase();
   const productId = parseInt(req.params.id);
-  const product = consumerProducts[productId];
+  let product = consumerProducts[productId];
+
+// 🔹 FALLBACK TO MONGODB (Render-safe)
+if (!product) {
+  product = await Product.findOne({ id: productId });
+}
+
 
   if (!product) {
     return res.status(404).json({ success: false, error: 'Product not found' });
