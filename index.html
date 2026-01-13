@@ -3,199 +3,257 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>All Products QR Codes - Admin Dashboard</title>
+    <title>QR Code Dashboard</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f5f7fa;
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
         }
+
         h1 {
             text-align: center;
-            color: #333;
+            color: white;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+            margin-bottom: 30px;
+            font-size: 36px;
+            animation: fadeIn 0.6s ease-out;
         }
+
+        #connectionStatus {
+            text-align: center;
+            padding: 12px 24px;
+            margin: 0 auto 30px;
+            border-radius: 25px;
+            font-weight: 600;
+            max-width: 400px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-connected {
+            background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
+            color: #065f46;
+        }
+
+        .status-disconnected {
+            background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%);
+            color: #991b1b;
+        }
+
         #controls {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
+            animation: slideIn 0.8s ease-out;
         }
+
         #search {
-            padding: 10px;
-            width: 300px;
+            padding: 12px 20px;
+            width: 350px;
             font-size: 16px;
+            border: 2px solid #fff;
+            border-radius: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: all 0.3s;
         }
-        .btn-primary {
-            padding: 10px 20px;
-            background: #4CAF50;
-            color: white;
+
+        #search:focus {
+            outline: none;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            transform: translateY(-2px);
+        }
+
+        #refresh {
+            padding: 12px 28px;
+            background: white;
+            color: #667eea;
             border: none;
-            border-radius: 5px;
+            border-radius: 25px;
             cursor: pointer;
-            margin-left: 10px;
+            margin-left: 15px;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: all 0.3s;
         }
-        .btn-primary:hover {
-            background: #45a049;
+
+        #refresh:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
         }
-        .btn-danger {
-            padding: 10px 20px;
-            background: #dc3545;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-left: 10px;
-        }
-        .btn-danger:hover {
-            background: #c82333;
-        }
+
         #loading {
             text-align: center;
-            font-size: 18px;
-            color: #666;
-            margin: 50px 0;
+            font-size: 20px;
+            color: white;
+            margin: 60px 0;
         }
+
+        .spinner {
+            border: 5px solid rgba(255,255,255,0.3);
+            border-top: 5px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
         .product-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            max-width: 1400px;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+            max-width: 1600px;
             margin: 0 auto;
+            animation: fadeIn 1s ease-out;
         }
+
         .product-card {
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            padding: 25px;
             text-align: center;
-            transition: transform 0.2s;
-            position: relative;
+            transition: all 0.3s;
+            animation: fadeIn 1.2s ease-out;
         }
+
         .product-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
         }
+
         .product-title {
-            font-size: 1.4em;
-            margin: 10px 0;
+            font-size: 1.5em;
+            margin: 12px 0;
             color: #2c3e50;
+            font-weight: 700;
         }
+
         .product-info {
             color: #7f8c8d;
             margin-bottom: 15px;
-            font-size: 0.9em;
+            font-size: 0.95em;
+            line-height: 1.6;
         }
+
         .status-badge {
-            padding: 5px 12px;
+            padding: 6px 14px;
             border-radius: 20px;
             font-size: 0.9em;
-            font-weight: bold;
+            font-weight: 700;
             display: inline-block;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
-        .verified { background: #d4edda; color: #155724; }
-        .pending { background: #fff3cd; color: #856404; }
-        .qr-container {
+
+        .verified { 
+            background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
+            color: #155724;
+        }
+
+        .pending { 
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            color: #856404;
+        }
+
+        .product-image {
+            width: 100%;
+            max-width: 300px;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 15px;
             margin: 15px auto;
-            width: 180px;
-            height: 180px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            display: block;
+            transition: transform 0.3s;
+        }
+
+        .product-image:hover {
+            transform: scale(1.05);
+        }
+
+        .qr-container {
+            margin: 20px auto;
+            width: 200px;
+            height: 200px;
             display: flex;
             justify-content: center;
             align-items: center;
             background: #f8f9fa;
-            border-radius: 8px;
+            border-radius: 15px;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.1);
         }
+
         .qr-container img {
             width: 180px;
             height: 180px;
-            border-radius: 8px;
+            border-radius: 10px;
         }
+
         .actions {
-            margin-top: 10px;
+            margin-top: 15px;
             display: flex;
             justify-content: center;
-            gap: 8px;
+            gap: 10px;
             flex-wrap: wrap;
         }
+
         .btn {
-            padding: 8px 16px;
+            padding: 10px 20px;
             border: none;
-            border-radius: 5px;
+            border-radius: 10px;
             cursor: pointer;
             font-size: 0.9em;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .btn-copy { background: #007bff; color: white; }
-        .btn-copy:hover { background: #0056b3; }
-        .btn-download { background: #28a745; color: white; }
-        .btn-download:hover { background: #218838; }
-        .btn-delete { background: #dc3545; color: white; }
-        .btn-delete:hover { background: #c82333; }
-        .btn-confirm { background: #dc3545; color: white; }
-        .btn-confirm:hover { background: #c82333; }
-        .btn-cancel { background: #6c757d; color: white; }
-        .btn-cancel:hover { background: #5a6268; }
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .error { 
-            color: red; 
-            text-align: center; 
-            padding: 20px;
-        }
-        .connection-status {
-            text-align: center;
-            padding: 10px;
-            margin-bottom: 20px;
-            border-radius: 8px;
             font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
-        .status-connected {
-            background: #d4edda;
-            color: #155724;
+
+        .btn-copy { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
-        .status-disconnected {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        .admin-panel {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            max-width: 500px;
-            margin: 20px auto;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        .admin-panel h3 {
-            margin-top: 0;
+
+        .btn-download { 
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
             color: #333;
         }
-        .form-group {
-            margin-bottom: 15px;
+
+        .btn-delete { 
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
         }
-        .form-group input {
-            width: 100%;
-            padding: 10px;
-            font-size: 16px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            box-sizing: border-box;
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
         }
-        .admin-status {
-            text-align: center;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
-        .admin-authenticated {
-            background: #d4edda;
-            color: #155724;
-        }
-        .admin-locked {
-            background: #f8d7da;
-            color: #721c24;
-        }
+
         .modal {
             display: none;
             position: fixed;
@@ -204,87 +262,79 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.6);
             justify-content: center;
             align-items: center;
+            animation: fadeIn 0.3s;
         }
+
         .modal-content {
-            background-color: white;
-            padding: 30px;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 400px;
+            background: white;
+            padding: 35px;
+            border-radius: 20px;
+            max-width: 450px;
             text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            animation: slideIn 0.4s;
         }
-        .modal-content h3 {
-            margin-top: 0;
-            color: #dc3545;
+
+        .modal h3 {
+            color: #e74c3c;
+            margin-bottom: 15px;
         }
+
+        #adminPassword {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
         .modal-buttons {
             margin-top: 20px;
             display: flex;
+            gap: 10px;
             justify-content: center;
-            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 28px; }
+            .product-grid { grid-template-columns: 1fr; }
+            #search { width: 100%; margin-bottom: 10px; }
+            #refresh { margin-left: 0; width: 100%; }
         }
     </style>
 </head>
 <body>
-    <h1>📱 All Products QR Codes - Admin Dashboard</h1>
-
-    <!-- Admin Authentication Panel -->
-    <div class="admin-panel" id="adminPanel">
-        <h3>🔐 Admin Access Required</h3>
-        <div id="adminStatus" class="admin-status admin-locked">
-            🔒 Please authenticate to manage products
-        </div>
-        <div class="form-group">
-            <input type="password" id="adminPassword" placeholder="Enter admin password (default: admin123)">
-        </div>
-        <button class="btn-primary" id="loginBtn">Login</button>
-        <button class="btn-danger" id="resetAllBtn" style="display:none;">🗑️ Delete ALL Products</button>
-    </div>
+    <h1>📱 Supply Chain QR Dashboard</h1>
 
     <div id="connectionStatus" class="connection-status">
         ⏳ Checking connection...
     </div>
 
     <div id="controls">
-        <input type="text" id="search" placeholder="🔍 Search by name or ID...">
-        <button class="btn-primary" id="refresh">🔄 Refresh Now</button>
+        <input type="text" id="search" placeholder="🔍 Search by name, ID, or batch...">
+        <button id="refresh">🔄 Refresh Now</button>
     </div>
 
-    <div id="loading">Loading products...</div>
-    <div id="error" class="error" style="display:none;"></div>
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>Loading products...</p>
+    </div>
 
     <div class="product-grid" id="products"></div>
 
-    <!-- Delete Confirmation Modal -->
-    <div id="deleteModal" class="modal">
+    <!-- Password Modal -->
+    <div id="passwordModal" class="modal">
         <div class="modal-content">
-            <h3>⚠️ Delete Product?</h3>
-            <p id="deleteMessage"></p>
-            <p style="color: #666; font-size: 0.9em;">This action cannot be undone.</p>
+            <h3>🔐 Admin Authentication</h3>
+            <p>Enter admin password to delete:</p>
+            <input type="password" id="adminPassword" placeholder="Enter password">
             <div class="modal-buttons">
-                <button class="btn btn-confirm" id="confirmDelete">Delete</button>
-                <button class="btn btn-cancel" id="cancelDelete">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Reset All Confirmation Modal -->
-    <div id="resetModal" class="modal">
-        <div class="modal-content">
-            <h3>⚠️ DELETE ALL PRODUCTS?</h3>
-            <p style="color: #dc3545; font-weight: bold; font-size: 1.2em;">
-                This will permanently delete ALL products!
-            </p>
-            <p style="color: #666; font-size: 0.9em;">
-                This action cannot be undone. The product ID counter will reset to 1.
-            </p>
-            <div class="modal-buttons">
-                <button class="btn btn-confirm" id="confirmReset">Yes, Delete Everything</button>
-                <button class="btn btn-cancel" id="cancelReset">Cancel</button>
+                <button class="btn btn-delete" id="confirmDelete">Delete</button>
+                <button class="btn btn-copy" id="cancelDelete">Cancel</button>
             </div>
         </div>
     </div>
@@ -293,201 +343,44 @@
         const BASE_URL = "https://harish-supply-chain.onrender.com";
         const API_URL = `${BASE_URL}/api/products`;
 
-        const productsContainer = document.getElementById("products");
-        const loading = document.getElementById("loading");
-        const errorDiv = document.getElementById("error");
-        const searchInput = document.getElementById("search");
-        const refreshBtn = document.getElementById("refresh");
-        const statusDiv = document.getElementById("connectionStatus");
-
-        const adminPanel = document.getElementById("adminPanel");
-        const adminStatus = document.getElementById("adminStatus");
-        const adminPassword = document.getElementById("adminPassword");
-        const loginBtn = document.getElementById("loginBtn");
-        const resetAllBtn = document.getElementById("resetAllBtn");
-
-        const deleteModal = document.getElementById("deleteModal");
-        const deleteMessage = document.getElementById("deleteMessage");
-        const confirmDeleteBtn = document.getElementById("confirmDelete");
-        const cancelDeleteBtn = document.getElementById("cancelDelete");
-
-        const resetModal = document.getElementById("resetModal");
-        const confirmResetBtn = document.getElementById("confirmReset");
-        const cancelResetBtn = document.getElementById("cancelReset");
-
         let allProducts = [];
         let productToDelete = null;
-        let isAdminAuthenticated = false;
-        let adminPasswordValue = '';
 
         async function checkConnection() {
+            const statusDiv = document.getElementById('connectionStatus');
             try {
-                const res = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(10000) });
+                const res = await fetch(`${BASE_URL}/health`, { 
+                    signal: AbortSignal.timeout(5000) 
+                });
                 const data = await res.json();
+                
                 if (data.status === 'healthy') {
                     statusDiv.className = 'connection-status status-connected';
-                    statusDiv.textContent = `✅ Connected (${data.productsCount} products in MongoDB)`;
+                    statusDiv.textContent = `✅ Connected - ${data.productsCount} products`;
                     return true;
                 }
             } catch (err) {
                 statusDiv.className = 'connection-status status-disconnected';
-                statusDiv.textContent = '⏱️ Backend waking up or disconnected';
+                statusDiv.textContent = '⚠️ Backend disconnected';
             }
             return false;
         }
 
-        // Admin authentication
-        loginBtn.addEventListener('click', async () => {
-            const password = adminPassword.value.trim();
-            
-            if (!password) {
-                alert('Please enter a password');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${BASE_URL}/api/admin/verify`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    isAdminAuthenticated = true;
-                    adminPasswordValue = password;
-                    adminStatus.className = 'admin-status admin-authenticated';
-                    adminStatus.textContent = '✅ Admin authenticated - Full access granted';
-                    resetAllBtn.style.display = 'inline-block';
-                    adminPassword.style.display = 'none';
-                    loginBtn.textContent = '🔓 Logged In';
-                    loginBtn.disabled = true;
-                    alert('✅ Admin access granted!');
-                    loadProducts();
-                } else {
-                    alert('❌ Invalid password');
-                }
-            } catch (err) {
-                alert('❌ Authentication error: ' + err.message);
-            }
-        });
-
-        // Reset all products
-        resetAllBtn.addEventListener('click', () => {
-            resetModal.style.display = 'flex';
-        });
-
-        confirmResetBtn.addEventListener('click', async () => {
-            if (!isAdminAuthenticated) {
-                alert('❌ Not authenticated');
-                return;
-            }
-
-            confirmResetBtn.disabled = true;
-            confirmResetBtn.textContent = 'Deleting...';
-
-            try {
-                const response = await fetch(`${BASE_URL}/api/reset`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Password': adminPasswordValue
-                    }
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    alert('✅ All products deleted! Database reset.');
-                    allProducts = [];
-                    renderProducts(allProducts);
-                    hideResetModal();
-                    await checkConnection();
-                } else {
-                    alert('❌ Reset failed: ' + data.error);
-                }
-            } catch (err) {
-                alert('❌ Error: ' + err.message);
-            } finally {
-                confirmResetBtn.disabled = false;
-                confirmResetBtn.textContent = 'Yes, Delete Everything';
-            }
-        });
-
-        cancelResetBtn.addEventListener('click', hideResetModal);
-
-        function hideResetModal() {
-            resetModal.style.display = 'none';
-        }
-
-        function showError(message) {
-            loading.style.display = "none";
-            errorDiv.textContent = message;
-            errorDiv.style.display = "block";
-        }
-
-        function showDeleteModal(product) {
-            if (!isAdminAuthenticated) {
-                alert('🔒 Admin authentication required to delete products');
-                return;
-            }
-            productToDelete = product;
-            deleteMessage.textContent = `Are you sure you want to delete "${product.name}" (ID: ${product.id})?`;
-            deleteModal.style.display = "flex";
-        }
-
-        function hideDeleteModal() {
-            deleteModal.style.display = "none";
-            productToDelete = null;
-        }
-
-        async function deleteProduct(productId) {
-            try {
-                if (!productId) {
-                    throw new Error('Invalid product ID');
-                }
-
-                if (!isAdminAuthenticated) {
-                    throw new Error('Not authenticated');
-                }
-                
-                console.log('Attempting to delete product:', productId);
-                
-                const response = await fetch(`${BASE_URL}/api/products/${productId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-Admin-Password': adminPasswordValue
-                    }
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData.error || `HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-                if (!data.success) throw new Error(data.error || 'Delete failed');
-
-                allProducts = allProducts.filter(p => p.id !== productId);
-                
-                renderProducts(allProducts);
-                alert('✅ Product deleted successfully!');
-                await checkConnection();
-                return true;
-            } catch (err) {
-                console.error('Delete error:', err);
-                alert('❌ Error deleting: ' + err.message);
-                return false;
-            }
-        }
-
         function renderProducts(products) {
-            productsContainer.innerHTML = "";
+            const container = document.getElementById("products");
+            const loading = document.getElementById("loading");
+            
+            container.innerHTML = "";
             loading.style.display = "none";
 
             if (products.length === 0) {
-                productsContainer.innerHTML = "<p class='error' style='grid-column: 1 / -1; text-align:center;'>No products found. Sync products from the distributor system.</p>";
+                container.innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align:center; color: white; padding: 60px;">
+                        <div style="font-size: 72px; margin-bottom: 20px;">📦</div>
+                        <h2>No Products Found</h2>
+                        <p>Sync products from distributor to see them here</p>
+                    </div>
+                `;
                 return;
             }
 
@@ -498,121 +391,176 @@
                 const productUrl = `${BASE_URL}/product/${p.id}`;
 
                 card.innerHTML = `
-                    <div class="product-title">${p.name || 'Unknown'} (ID: ${p.id || 'N/A'})</div>
+                    <div class="product-title">${p.name}</div>
+                    
+                    <img src="${p.image}" 
+                         alt="${p.name}" 
+                         class="product-image"
+                         onerror="this.src='https://via.placeholder.com/300x200?text=${encodeURIComponent(p.name)}'">
+                    
                     <div class="product-info">
-                        Batch: ${p.batch || 'N/A'}<br>
-                        Origin: ${p.origin || 'N/A'}<br>
-                        Harvest: ${p.harvestDate || 'N/A'}<br>
-                        👁️ ${p.scanCount || 0} scans
+                        <strong>ID:</strong> ${p.id}<br>
+                        <strong>Batch:</strong> ${p.batch}<br>
+                        <strong>Origin:</strong> ${p.origin}<br>
+                        <strong>Harvest:</strong> ${p.harvestDate}<br>
+                        <strong>Scans:</strong> 👁️ ${p.scanCount || 0}
                     </div>
+                    
                     <span class="status-badge ${p.state === 2 ? 'verified' : 'pending'}">
-                        ${p.state === 2 ? '✓ Retail' : '⏳ In Transit'}
+                        ${p.state === 2 ? '✓ Retail Ready' : '⏳ In Transit'}
                     </span>
+                    
                     <div class="qr-container">
-                        <img src="${p.qrCode || 'https://via.placeholder.com/180?text=No+QR+Code'}" 
-                             alt="QR Code"
-                             onerror="this.src='https://via.placeholder.com/180?text=QR+Load+Failed'">
+                        <img src="${p.qrCode || 'https://via.placeholder.com/180?text=QR'}" 
+                             alt="QR Code">
                     </div>
+                    
                     <div class="actions">
-                        <button class="btn btn-copy">📋 Copy Link</button>
-                        <button class="btn btn-download">💾 Download QR</button>
-                        <button class="btn btn-delete" ${!isAdminAuthenticated ? 'style="opacity:0.5" title="Admin login required"' : ''}>🗑️ Delete</button>
+                        <button class="btn btn-copy" data-id="${p.id}" data-url="${productUrl}">📋 Copy Link</button>
+                        <button class="btn btn-download" data-id="${p.id}" data-name="${p.name}" data-qrcode="${p.qrCode}">💾 Download</button>
+                        <button class="btn btn-delete" data-id="${p.id}" data-name="${p.name}">🗑️ Delete</button>
                     </div>
                 `;
 
-                card.querySelector(".btn-copy").onclick = () => {
-                    navigator.clipboard.writeText(productUrl);
-                    alert("✅ Link copied to clipboard!");
-                };
-
-                card.querySelector(".btn-download").onclick = () => {
-                    if (p.qrCode) {
-                        const a = document.createElement("a");
-                        a.href = p.qrCode;
-                        a.download = `QR_${p.name.replace(/\s+/g, '_')}_ID${p.id}.png`;
-                        a.click();
-                    } else {
-                        alert("❌ QR code not available");
-                    }
-                };
-
-                card.querySelector(".btn-delete").onclick = () => showDeleteModal(p);
-
-                productsContainer.appendChild(card);
+                container.appendChild(card);
             });
         }
 
+        function copyLink(id, url) {
+            navigator.clipboard.writeText(url);
+            alert("✅ Product link copied!");
+        }
+
+        function downloadQR(id, name, qrCode) {
+            if (!qrCode) {
+                alert("❌ QR code not available");
+                return;
+            }
+            const a = document.createElement("a");
+            a.href = qrCode;
+            a.download = `QR_${name.replace(/\s+/g, '_')}_ID${id}.png`;
+            a.click();
+        }
+
+        function showPasswordModal(id, name) {
+            productToDelete = id;
+            document.getElementById('adminPassword').value = '';
+            document.getElementById('passwordModal').style.display = 'flex';
+        }
+
+        function hidePasswordModal() {
+            document.getElementById('passwordModal').style.display = 'none';
+            productToDelete = null;
+        }
+
+        async function deleteProduct() {
+            const password = document.getElementById('adminPassword').value;
+            
+            if (!password) {
+                alert('Please enter admin password');
+                return;
+            }
+
+            if (!productToDelete) return;
+
+            try {
+                const response = await fetch(`${API_URL}/${productToDelete}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-Admin-Password': password
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('✅ Product deleted successfully!');
+                    hidePasswordModal();
+                    loadProducts();
+                } else {
+                    alert('❌ ' + (data.error || 'Delete failed'));
+                }
+            } catch (err) {
+                alert('❌ Error: ' + err.message);
+            }
+        }
+
         async function loadProducts() {
+            const refreshBtn = document.getElementById("refresh");
+            const loading = document.getElementById("loading");
+            
             loading.style.display = "block";
-            errorDiv.style.display = "none";
             refreshBtn.disabled = true;
             refreshBtn.textContent = "⏳ Loading...";
 
             try {
-                const res = await fetch(API_URL, { signal: AbortSignal.timeout(30000) });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const res = await fetch(API_URL, { 
+                    signal: AbortSignal.timeout(10000) 
+                });
+                
                 const data = await res.json();
-                
-                console.log('API Response:', data);
-                
-                if (!data.success) throw new Error(data.error || "Unknown error");
 
-                allProducts = data.products || [];
-                
-                console.log(`Loaded ${allProducts.length} products from MongoDB`);
-                if (allProducts.length > 0) {
-                    console.log('First product:', allProducts[0]);
+                if (data.success) {
+                    allProducts = data.products || [];
+                    renderProducts(allProducts);
+                    
+                    const statusDiv = document.getElementById('connectionStatus');
+                    statusDiv.className = 'connection-status status-connected';
+                    statusDiv.textContent = `✅ Loaded ${allProducts.length} products`;
+                } else {
+                    throw new Error('Failed to load');
                 }
-                
-                renderProducts(allProducts);
-
-                statusDiv.className = 'connection-status status-connected';
-                statusDiv.textContent = `✅ Loaded ${allProducts.length} products from MongoDB`;
             } catch (err) {
-                showError("Error: " + (err.message || "Failed to load"));
-                statusDiv.className = 'connection-status status-disconnected';
-                statusDiv.textContent = '❌ Failed to load products';
+                document.getElementById("products").innerHTML = `
+                    <div style="grid-column: 1 / -1; text-align:center; color: white; padding: 60px;">
+                        <h2>⚠️ Error Loading Products</h2>
+                        <p>${err.message}</p>
+                        <button onclick="loadProducts()" style="margin-top:20px; padding:12px 24px; background:white; color:#667eea; border:none; border-radius:10px; cursor:pointer; font-weight:600;">
+                            🔄 Try Again
+                        </button>
+                    </div>
+                `;
             } finally {
+                loading.style.display = "none";
                 refreshBtn.disabled = false;
                 refreshBtn.textContent = "🔄 Refresh Now";
             }
         }
 
-        searchInput.addEventListener("input", (e) => {
+        document.getElementById("search").addEventListener("input", (e) => {
             const term = e.target.value.toLowerCase();
-            const filtered = allProducts.filter(p => {
-                return p.name.toLowerCase().includes(term) ||
-                       String(p.id).includes(term) ||
-                       (p.batch && p.batch.toLowerCase().includes(term));
-            });
+            const filtered = allProducts.filter(p =>
+                p.name.toLowerCase().includes(term) ||
+                String(p.id).includes(term) ||
+                p.batch.toLowerCase().includes(term) ||
+                p.origin.toLowerCase().includes(term)
+            );
             renderProducts(filtered);
         });
 
-        refreshBtn.addEventListener("click", loadProducts);
-
-        confirmDeleteBtn.addEventListener("click", async () => {
-            if (productToDelete) {
-                confirmDeleteBtn.disabled = true;
-                confirmDeleteBtn.textContent = "Deleting...";
-                await deleteProduct(productToDelete.id);
-                confirmDeleteBtn.disabled = false;
-                confirmDeleteBtn.textContent = "Delete";
-                hideDeleteModal();
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-copy')) {
+                const id = e.target.dataset.id;
+                const url = e.target.dataset.url;
+                copyLink(id, url);
+            } else if (e.target.classList.contains('btn-download')) {
+                const id = e.target.dataset.id;
+                const name = e.target.dataset.name;
+                const qrCode = e.target.dataset.qrcode;
+                downloadQR(id, name, qrCode);
+            } else if (e.target.classList.contains('btn-delete')) {
+                const id = e.target.dataset.id;
+                const name = e.target.dataset.name;
+                showPasswordModal(id, name);
             }
         });
 
-        cancelDeleteBtn.addEventListener("click", hideDeleteModal);
-        deleteModal.addEventListener("click", (e) => {
-            if (e.target === deleteModal) hideDeleteModal();
-        });
-        resetModal.addEventListener("click", (e) => {
-            if (e.target === resetModal) hideResetModal();
-        });
+        document.getElementById("refresh").addEventListener("click", loadProducts);
+        document.getElementById("confirmDelete").addEventListener("click", deleteProduct);
+        document.getElementById("cancelDelete").addEventListener("click", hidePasswordModal);
 
-        // Auto-refresh every 30 seconds
         setInterval(loadProducts, 30000);
 
-        // Initial load
         window.addEventListener('load', async () => {
             await checkConnection();
             loadProducts();
