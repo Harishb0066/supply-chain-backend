@@ -94,57 +94,30 @@ function getProductImage(productName) {
 
 // ==================== API ROUTES ====================
 
+// ... keep all requires, mongoose connection, schemas, createHash, verifyHashChain, getProductImage ...
+
 app.post('/api/products/sync', async (req, res) => {
   try {
     const { distributorProductId, name, origin, status, timestamp } = req.body;
 
-    console.log('📥 Sync request received:', { distributorProductId, name, origin, status });
+    console.log('📥 Sync:', { distributorProductId, name, origin, status, timestamp });
 
-    const existing = await Product.findOne({ distributorId: distributorProductId });
-
-    if (existing) {
-      return res.status(400).json({
-        error: 'Product already synced',
-        consumerProductId: existing.id
-      });
+    if (await Product.findOne({ distributorId: distributorProductId })) {
+      return res.status(400).json({ error: 'Already synced' });
     }
 
-    const maxProduct = await Product.findOne({}, 'id').sort({ id: -1 });
-    const maxId = maxProduct ? maxProduct.id : 0;
+    const last = await Product.findOne().sort({ id: -1 });
+    const consumerProductId = last && last.id ? Number(last.id) + 1 : 1;
 
-    if (maxId >= 100000) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Maximum number of products reached (100,000). Cannot sync more.' 
-      });
-    }
+    const now = new Date();
 
-    const consumerProductId = maxId + 1;
-
-    const batch = `${origin.substring(0,2).toUpperCase()}-${name.toUpperCase().replace(/\s+/g,'')}-${new Date().getFullYear()}-${Math.random().toString(36).substring(2,5).toUpperCase()}`;
+    // Real-time timestamps
+    const farmerTime   = timestamp ? new Date(timestamp) : now;               // from distributor or now
+    const distributorTime = now;                                               // when we receive/sync it
+    const retailerTime = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);   // example: +3 days — adjust as needed
 
     const stateMap = { 'Farmer': 0, 'Distributor': 1, 'Retail': 2 };
-    const state = stateMap[status] || 0;
-
-    const foodImage = getProductImage(name);
-
-    const consumerProduct = {
-      id: consumerProductId,
-      name,
-      origin,
-      batch,
-      harvestDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      description: `${name} sourced from ${origin} via verified supply chain`,
-      state,
-      distributorId: distributorProductId,
-      syncedAt: new Date().toISOString(),
-      scanCount: 0,
-      image: foodImage
-    };
-
-    const farmerTime = new Date(timestamp || Date.now());
-    const distributorTime = new Date(farmerTime.getTime() + (2 * 60 * 60 * 1000));
-    const retailTime = new Date(distributorTime.getTime() + (8 * 60 * 60 * 1000));
+    const state = stateMap[status] ?? 0;
 
     const farmerBlock = {
       role: "Farmer",
@@ -167,39 +140,52 @@ app.post('/api/products/sync', async (req, res) => {
     const retailBlock = {
       role: "Retailer",
       location: "Retail Store",
-      timestamp: retailTime.toISOString(),
-      description: "Product ready for consumer purchase",
+      timestamp: retailerTime.toISOString(),
+      description: "Product ready for consumer purchase (estimated)",
       previousHash: distributorBlock.hash
     };
     retailBlock.hash = createHash(retailBlock);
 
-    consumerProduct.journey = [farmerBlock, distributorBlock, retailBlock];
+    const batch = `${origin.substring(0,2).toUpperCase()}-${name.toUpperCase().replace(/\s+/g,'')}-${now.getFullYear()}-${Math.random().toString(36).substring(2,5).toUpperCase()}`;
 
-    const verification = verifyHashChain(consumerProduct.journey);
-    console.log('🔐 Hash chain verification:', verification.message);
+    const productData = {
+      id: consumerProductId,
+      name,
+      origin,
+      batch,
+      harvestDate: farmerTime.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }),
+      description: `${name} sourced from ${origin} via verified supply chain`,
+      state,
+      distributorId: distributorProductId,
+      syncedAt: now.toISOString(),
+      scanCount: 0,
+      image: getProductImage(name),
+      journey: [farmerBlock, distributorBlock, retailBlock],
+    };
 
-    const publicUrl = `https://harish-supply-chain.onrender.com/product/${consumerProductId}`;
-    
-    const qrCodeUrl = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
-    consumerProduct.qrCode = qrCodeUrl;
+    const verification = verifyHashChain(productData.journey);
+    console.log('🔐 Verification:', verification.message);
 
-    const newProduct = await Product.create(consumerProduct);
+    const publicUrl = `${BASE_URL}/product/${consumerProductId}`;
+    productData.qrCode = await QRCode.toDataURL(publicUrl, { width: 300, margin: 2 });
 
-    console.log(`✅ Product synced: Consumer ID ${consumerProductId}`);
+    await Product.create(productData);
 
     res.json({
       success: true,
       consumerProductId,
-      qrCode: qrCodeUrl,
-      product: newProduct,
+      qrCode: productData.qrCode,
+      product: productData,
       hashChainVerified: verification.valid
     });
 
-  } catch (error) {
-    console.error('❌ Sync error:', error);
-    res.status(500).json({ error: 'Failed to sync product', details: error.message });
+  } catch (err) {
+    console.error('❌ Sync error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
+
+// Keep all other routes exactly as they are (/api/products, /product/:id, /api/reset, etc.)
 
 app.get('/api/products', async (req, res) => {
   const products = await Product.find({});
