@@ -45,51 +45,68 @@
         .product-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
+            gap: 24px;
             max-width: 1400px;
             margin: 0 auto;
         }
         .product-card {
             background: white;
             border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
             padding: 20px;
             text-align: center;
             transition: transform 0.2s;
-            position: relative;
         }
         .product-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-4px);
         }
         .product-title {
             font-size: 1.4em;
-            margin: 10px 0;
+            margin: 10px 0 6px;
             color: #2c3e50;
         }
         .product-info {
             color: #7f8c8d;
-            margin-bottom: 15px;
-            font-size: 0.9em;
+            margin-bottom: 12px;
+            font-size: 0.95em;
+            line-height: 1.4;
         }
         .status-badge {
-            padding: 5px 12px;
+            padding: 6px 14px;
             border-radius: 20px;
             font-size: 0.9em;
             font-weight: bold;
             display: inline-block;
-            margin-bottom: 10px;
+            margin-bottom: 16px;
         }
         .verified { background: #d4edda; color: #155724; }
-        .pending { background: #fff3cd; color: #856404; }
+        .pending   { background: #fff3cd; color: #856404; }
+        
+        .product-image-container {
+            margin: 16px 0;
+            height: 180px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .product-image-container img {
+            max-width: 100%;
+            max-height: 180px;
+            object-fit: contain;
+        }
+        
         .qr-container {
-            margin: 15px auto;
+            margin: 20px auto 16px;
             width: 180px;
             height: 180px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             background: #f8f9fa;
-            border-radius: 8px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .qr-container img {
             width: 180px;
@@ -97,87 +114,76 @@
             border-radius: 8px;
         }
         .actions {
-            margin-top: 10px;
+            margin-top: 12px;
             display: flex;
             justify-content: center;
-            gap: 8px;
+            gap: 10px;
             flex-wrap: wrap;
         }
         .btn {
-            padding: 8px 16px;
+            padding: 9px 18px;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 0.9em;
+            font-size: 0.92em;
             font-weight: 500;
-            transition: all 0.2s;
+            transition: all 0.18s;
         }
-        .btn-copy { background: #007bff; color: white; }
-        .btn-copy:hover { background: #0056b3; }
-        .btn-download { background: #28a745; color: white; }
-        .btn-download:hover { background: #218838; }
-        .btn-delete { background: #dc3545; color: white; }
-        .btn-delete:hover { background: #c82333; }
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
+        .btn-copy    { background: #0069d9; color: white; }
+        .btn-copy:hover    { background: #0056b3; }
+        .btn-download { background: #218838; color: white; }
+        .btn-download:hover { background: #1e7e34; }
+        .btn-delete   { background: #c82333; color: white; }
+        .btn-delete:hover   { background: #bd2130; }
+        .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        
         .error { 
-            color: red; 
+            color: #c82333; 
             text-align: center; 
-            padding: 20px;
+            padding: 24px;
+            font-size: 1.1em;
         }
         .connection-status {
             text-align: center;
-            padding: 10px;
+            padding: 12px;
             margin-bottom: 20px;
             border-radius: 8px;
             font-weight: 600;
         }
-        .status-connected {
-            background: #d4edda;
-            color: #155724;
-        }
-        .status-disconnected {
-            background: #f8d7da;
-            color: #721c24;
-        }
+        .status-connected    { background: #d4edda; color: #155724; }
+        .status-disconnected { background: #f8d7da; color: #721c24; }
 
-        /* Modal styles */
+        /* Modal */
         .modal {
             display: none;
             position: fixed;
             z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
             background-color: rgba(0,0,0,0.5);
             justify-content: center;
             align-items: center;
         }
         .modal-content {
-            background-color: white;
+            background: white;
             padding: 30px;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 400px;
+            border-radius: 12px;
+            width: 90%; max-width: 420px;
             text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-        .modal-content h3 {
-            margin-top: 0;
-            color: #dc3545;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
         }
         .modal-buttons {
-            margin-top: 20px;
+            margin-top: 24px;
             display: flex;
+            gap: 16px;
             justify-content: center;
-            gap: 15px;
         }
+        .btn-confirm { background: #c82333; color: white; }
+        .btn-cancel  { background: #6c757d; color: white; }
     </style>
 </head>
 <body>
+
     <h1>📱 All Products QR Codes</h1>
 
     <div id="connectionStatus" class="connection-status">
@@ -185,7 +191,7 @@
     </div>
 
     <div id="controls">
-        <input type="text" id="search" placeholder="🔍 Search by name or ID...">
+        <input type="text" id="search" placeholder="🔍 Search by name, ID, batch...">
         <button id="refresh">🔄 Refresh Now</button>
     </div>
 
@@ -199,7 +205,7 @@
         <div class="modal-content">
             <h3>⚠️ Delete Product?</h3>
             <p id="deleteMessage"></p>
-            <p style="color: #666; font-size: 0.9em;">This action cannot be undone.</p>
+            <p style="color:#666; font-size:0.95em;">This cannot be undone.</p>
             <div class="modal-buttons">
                 <button class="btn btn-confirm" id="confirmDelete">Delete</button>
                 <button class="btn btn-cancel" id="cancelDelete">Cancel</button>
@@ -208,7 +214,6 @@
     </div>
 
     <script>
-        // 🔧 FIXED: Always use your CURRENT Render backend
         const BASE_URL = "https://harish-supply-chain.onrender.com";
         const API_URL = `${BASE_URL}/api/products`;
 
@@ -227,31 +232,47 @@
         let allProducts = [];
         let productToDelete = null;
 
+        // ─── IMAGE MAPPING FUNCTION ─────────────────────────────────────────────
+        function getProductImageUrl(name) {
+            if (!name) return "/images/default.jpg";
+            const n = name.toLowerCase().trim();
+
+            if (n.includes("pineapple")) return "/public/pineapple.jpg";
+            if (n.includes("apple"))     return "/public/apple.jpg";
+            if (n.includes("chips"))     return "/public/chips.jpg";
+            if (n.includes("mango") || n.includes("mago")) return "/public/mago.jpg";
+            if (n.includes("bread"))     return "/public/bread.jpg";
+            if (n.includes("kulfi"))     return "/public/kulfi.jpg";
+            if (n.includes("vinegar"))   return "/public/vinegar.jpg";
+
+            // fallback
+            return "https://via.placeholder.com/300x180?text=" + encodeURIComponent(name);
+        }
+
         async function checkConnection() {
             try {
-                const res = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(10000) });
-                const data = await res.json();
-                if (data.status === 'healthy') {
+                const res = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(8000) });
+                if (res.ok) {
+                    const data = await res.json();
                     statusDiv.className = 'connection-status status-connected';
-                    statusDiv.textContent = `✅ Connected (${data.productsCount} products)`;
+                    statusDiv.textContent = `✅ Connected (${data.productsCount || '?'} products)`;
                     return true;
                 }
-            } catch (err) {
-                statusDiv.className = 'connection-status status-disconnected';
-                statusDiv.textContent = '⏱️ Backend waking up or disconnected';
-            }
+            } catch {}
+            statusDiv.className = 'connection-status status-disconnected';
+            statusDiv.textContent = 'Backend waking up or disconnected';
             return false;
         }
 
-        function showError(message) {
+        function showError(msg) {
             loading.style.display = "none";
-            errorDiv.textContent = message;
+            errorDiv.textContent = msg;
             errorDiv.style.display = "block";
         }
 
         function showDeleteModal(product) {
             productToDelete = product;
-            deleteMessage.textContent = `Are you sure you want to delete "${product.name}" (ID: ${product.id})?`;
+            deleteMessage.textContent = `Delete "${product.name}" (ID: ${product.id})?`;
             deleteModal.style.display = "flex";
         }
 
@@ -260,26 +281,19 @@
             productToDelete = null;
         }
 
-        async function deleteProduct(productId) {
+        async function deleteProduct(id) {
             try {
-                const response = await fetch(`${API_URL.replace('/products', '')}/products/${productId}`, {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) {
-                    const errData = await response.json().catch(() => ({}));
-                    throw new Error(errData.error || `HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
+                const res = await fetch(`${BASE_URL}/api/products/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Delete failed');
 
-                allProducts = allProducts.filter(p => p.id !== productId);
+                allProducts = allProducts.filter(p => p.id !== id);
                 renderProducts(allProducts);
-                alert('✅ Product deleted successfully!');
+                alert('Product deleted');
                 return true;
             } catch (err) {
-                alert('❌ Error deleting: ' + err.message);
+                alert('Delete failed: ' + err.message);
                 return false;
             }
         }
@@ -289,7 +303,7 @@
             loading.style.display = "none";
 
             if (products.length === 0) {
-                productsContainer.innerHTML = "<p class='error' style='grid-column: 1 / -1; text-align:center;'>No products found.</p>";
+                productsContainer.innerHTML = '<p class="error" style="grid-column:1/-1">No products found</p>';
                 return;
             }
 
@@ -300,7 +314,7 @@
                 const productUrl = `${BASE_URL}/product/${p.id}`;
 
                 card.innerHTML = `
-                    <div class="product-title">${p.name} (ID: ${p.id})</div>
+                    <div class="product-title">${p.name} <small>(ID: ${p.id})</small></div>
                     <div class="product-info">
                         Batch: ${p.batch}<br>
                         Origin: ${p.origin}<br>
@@ -310,10 +324,18 @@
                     <span class="status-badge ${p.state === 2 ? 'verified' : 'pending'}">
                         ${p.state === 2 ? '✓ Retail' : '⏳ In Transit'}
                     </span>
+
+                    <div class="product-image-container">
+                        <img src="${getProductImageUrl(p.name)}" 
+                             alt="${p.name}"
+                             onerror="this.src='https://via.placeholder.com/300x180?text=No+Image'">
+                    </div>
+
                     <div class="qr-container">
                         <img src="${p.qrCode || 'https://via.placeholder.com/180?text=QR+Not+Available'}" 
-                             alt="QR Code">
+                             alt="QR Code for ${p.name}">
                     </div>
+
                     <div class="actions">
                         <button class="btn btn-copy">📋 Copy Link</button>
                         <button class="btn btn-download">💾 Download QR</button>
@@ -321,20 +343,19 @@
                     </div>
                 `;
 
-                // Attach event listeners
                 card.querySelector(".btn-copy").onclick = () => {
                     navigator.clipboard.writeText(productUrl);
-                    alert("Link copied!");
+                    alert("Link copied to clipboard!");
                 };
 
                 card.querySelector(".btn-download").onclick = () => {
                     if (p.qrCode) {
                         const a = document.createElement("a");
                         a.href = p.qrCode;
-                        a.download = `QR_${p.name.replace(/\s+/g, '_')}_ID${p.id}.png`;
+                        a.download = `QR_${p.name.replace(/\s+/g,'_')}_ID${p.id}.png`;
                         a.click();
                     } else {
-                        alert("QR not available");
+                        alert("No QR available");
                     }
                 };
 
@@ -351,61 +372,55 @@
             refreshBtn.textContent = "⏳ Loading...";
 
             try {
-                const res = await fetch(API_URL, { signal: AbortSignal.timeout(30000) });
+                const res = await fetch(API_URL, { signal: AbortSignal.timeout(20000) });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                if (!data.success) throw new Error(data.error || "Unknown error");
+                if (!data.success) throw new Error(data.error || "API error");
 
                 allProducts = data.products || [];
                 renderProducts(allProducts);
 
-                statusDiv.className = 'connection-status status-connected';
                 statusDiv.textContent = `✅ Loaded ${allProducts.length} products`;
             } catch (err) {
-                showError("Error: " + (err.message || "Failed to load"));
-                statusDiv.className = 'connection-status status-disconnected';
-                statusDiv.textContent = '❌ Failed to load products';
+                showError("Could not load products: " + err.message);
             } finally {
                 refreshBtn.disabled = false;
                 refreshBtn.textContent = "🔄 Refresh Now";
             }
         }
 
-        searchInput.addEventListener("input", (e) => {
-            const term = e.target.value.toLowerCase();
+        // Search (live filter)
+        searchInput.addEventListener("input", e => {
+            const term = e.target.value.toLowerCase().trim();
             const filtered = allProducts.filter(p =>
                 p.name.toLowerCase().includes(term) ||
                 String(p.id).includes(term) ||
-                p.batch.toLowerCase().includes(term)
+                (p.batch && p.batch.toLowerCase().includes(term))
             );
             renderProducts(filtered);
         });
 
-        refreshBtn.addEventListener("click", loadProducts);
+        refreshBtn.onclick = loadProducts;
 
-        confirmDeleteBtn.addEventListener("click", async () => {
+        confirmDeleteBtn.onclick = async () => {
             if (productToDelete) {
                 confirmDeleteBtn.disabled = true;
-                confirmDeleteBtn.textContent = "Deleting...";
                 await deleteProduct(productToDelete.id);
                 confirmDeleteBtn.disabled = false;
-                confirmDeleteBtn.textContent = "Delete";
                 hideDeleteModal();
             }
-        });
+        };
 
-        cancelDeleteBtn.addEventListener("click", hideDeleteModal);
-        deleteModal.addEventListener("click", (e) => {
-            if (e.target === deleteModal) hideDeleteModal();
-        });
+        cancelDeleteBtn.onclick = hideDeleteModal;
+        deleteModal.onclick = e => { if (e.target === deleteModal) hideDeleteModal(); };
 
-        // Auto-refresh every 30 seconds
-        setInterval(loadProducts, 30000);
+        // Auto refresh every 45 seconds
+        setInterval(loadProducts, 45000);
 
-        // Initial load
+        // Start
         window.addEventListener('load', async () => {
             await checkConnection();
-            loadProducts();
+            await loadProducts();
         });
     </script>
 </body>
