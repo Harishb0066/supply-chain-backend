@@ -140,7 +140,7 @@ function getProductImageUrl(name) {
   if (n.includes("kulfi"))     return "/public/kulfi.jpg";
   if (n.includes("vinegar"))   return "/public/vinegar.jpg";
 
-  return "/default.jpg";
+  return "/public/default.jpg";
 }
 
 // ==================== API ROUTES ====================
@@ -522,3 +522,4 @@ app.listen(PORT, () => {
 ╚═══════════════════════════════════════════╝
 `);
 });
+
