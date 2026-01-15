@@ -126,6 +126,22 @@ function getProductImage(productName) {
 
   return `https://source.unsplash.com/800x600/?${encodeURIComponent(keywords + ' high quality real photo')}`;
 }
+// ─── IMAGE MAPPING FUNCTION FOR SCAN PAGE ─────────────────────────────────
+function getProductImageUrl(name) {
+  if (!name) return "/default.jpg";
+  
+  const n = name.toLowerCase().trim();
+
+  if (n.includes("pineapple")) return "/pineapple.jpg";
+  if (n.includes("apple"))     return "/apple.jpg";
+  if (n.includes("chips"))     return "/chips.jpg";
+  if (n.includes("mango"))     return "/mango.jpg";
+  if (n.includes("bread"))     return "/bread.jpg";
+  if (n.includes("kulfi"))     return "/kulfi.jpg";
+  if (n.includes("vinegar"))   return "/vinegar.jpg";
+
+  return "/default.jpg";
+}
 
 // ==================== API ROUTES ====================
 
@@ -403,7 +419,7 @@ app.get('/product/:id', (req, res) => {
         <h2 class="status ${analysis.status.toLowerCase()}">${analysis.status}</h2>
         <h2>🛒 ${product.name}</h2>
 
-        <img src="${product.image}" alt="${product.name}" />
+       <img src="${getProductImageUrl(product.name)}" alt="${product.name}" />
 
         <p><b>Origin:</b> ${product.origin}</p>
         <p><b>Batch ID:</b> ${product.batch}</p>
