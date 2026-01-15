@@ -132,13 +132,13 @@ function getProductImageUrl(name) {
   
   const n = name.toLowerCase().trim();
 
-  if (n.includes("pineapple")) return "/pineapple.jpg";
-  if (n.includes("apple"))     return "/apple.jpg";
-  if (n.includes("chips"))     return "/chips.jpg";
-  if (n.includes("mango"))     return "/mango.jpg";
-  if (n.includes("bread"))     return "/bread.jpg";
-  if (n.includes("kulfi"))     return "/kulfi.jpg";
-  if (n.includes("vinegar"))   return "/vinegar.jpg";
+  if (n.includes("pineapple")) return "/public/pineapple.jpg";
+  if (n.includes("apple"))     return "/public/apple.jpg";
+  if (n.includes("chips"))     return "/public/chips.jpg";
+  if (n.includes("mango"))     return "/public/mango.jpg";
+  if (n.includes("bread"))     return "/public/bread.jpg";
+  if (n.includes("kulfi"))     return "/public/kulfi.jpg";
+  if (n.includes("vinegar"))   return "/public/vinegar.jpg";
 
   return "/default.jpg";
 }
